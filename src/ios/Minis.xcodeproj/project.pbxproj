@@ -619,6 +619,12 @@
 		RCL000119 /* BackupHistoryDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = RCL000219 /* BackupHistoryDetailView.swift */; };
 		RCL000120 /* BackupCategoryIcon.swift in Sources */ = {isa = PBXBuildFile; fileRef = RCL000220 /* BackupCategoryIcon.swift */; };
 		RCL000121 /* BackupHUD.swift in Sources */ = {isa = PBXBuildFile; fileRef = RCL000221 /* BackupHUD.swift */; };
+		A1ACCB000000000000000001 /* NativeAccountOAuthManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1ACCA000000000000000001 /* NativeAccountOAuthManager.swift */; };
+		A1ACCB000000000000000002 /* NativeAccountChannel.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1ACCA000000000000000002 /* NativeAccountChannel.swift */; };
+		A1ACCB000000000000000003 /* TraeOAuth.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1ACCA000000000000000003 /* TraeOAuth.swift */; };
+		A1ACCB000000000000000004 /* TraeWire.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1ACCA000000000000000004 /* TraeWire.swift */; };
+		A1ACCB000000000000000005 /* RaccoonOAuth.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1ACCA000000000000000005 /* RaccoonOAuth.swift */; };
+		A1ACCB000000000000000006 /* RaccoonWire.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1ACCA000000000000000006 /* RaccoonWire.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -1441,6 +1447,12 @@
 		RCL000219 /* BackupHistoryDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackupHistoryDetailView.swift; sourceTree = "<group>"; };
 		RCL000220 /* BackupCategoryIcon.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackupCategoryIcon.swift; sourceTree = "<group>"; };
 		RCL000221 /* BackupHUD.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackupHUD.swift; sourceTree = "<group>"; };
+		A1ACCA000000000000000001 /* NativeAccountOAuthManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NativeAccountOAuthManager.swift; sourceTree = "<group>"; };
+		A1ACCA000000000000000002 /* NativeAccountChannel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NativeAccountChannel.swift; sourceTree = "<group>"; };
+		A1ACCA000000000000000003 /* TraeOAuth.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TraeOAuth.swift; sourceTree = "<group>"; };
+		A1ACCA000000000000000004 /* TraeWire.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TraeWire.swift; sourceTree = "<group>"; };
+		A1ACCA000000000000000005 /* RaccoonOAuth.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RaccoonOAuth.swift; sourceTree = "<group>"; };
+		A1ACCA000000000000000006 /* RaccoonWire.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RaccoonWire.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -1750,6 +1762,7 @@
 		E52000030 /* Providers */ = {
 			isa = PBXGroup;
 			children = (
+				A1ACCC000000000000000001 /* NativeAccounts */,
 				E5QTAGRP /* Quota */,
 				E52000011 /* LLMTypes.swift */,
 				E52000012 /* LLMError.swift */,
@@ -2708,6 +2721,19 @@
 			path = MCP;
 			sourceTree = "<group>";
 		};
+		A1ACCC000000000000000001 /* NativeAccounts */ = {
+			isa = PBXGroup;
+			children = (
+				A1ACCA000000000000000001 /* NativeAccountOAuthManager.swift */,
+				A1ACCA000000000000000002 /* NativeAccountChannel.swift */,
+				A1ACCA000000000000000003 /* TraeOAuth.swift */,
+				A1ACCA000000000000000004 /* TraeWire.swift */,
+				A1ACCA000000000000000005 /* RaccoonOAuth.swift */,
+				A1ACCA000000000000000006 /* RaccoonWire.swift */,
+			);
+			path = NativeAccounts;
+			sourceTree = "<group>";
+		};
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
@@ -3483,6 +3509,12 @@
 				F1MCPDCRB /* MCPOAuthDiscovery.swift in Sources */,
 				F1CPMODELSB /* CopilotModelsAPI.swift in Sources */,
 				F1CPMGRB /* CopilotOAuthManager.swift in Sources */,
+				A1ACCB000000000000000001 /* NativeAccountOAuthManager.swift in Sources */,
+				A1ACCB000000000000000002 /* NativeAccountChannel.swift in Sources */,
+				A1ACCB000000000000000003 /* TraeOAuth.swift in Sources */,
+				A1ACCB000000000000000004 /* TraeWire.swift in Sources */,
+				A1ACCB000000000000000005 /* RaccoonOAuth.swift in Sources */,
+				A1ACCB000000000000000006 /* RaccoonWire.swift in Sources */,
 				F1CPCONSTB /* CopilotConstants.swift in Sources */,
 				F1CPSHEETB /* CopilotDeviceLoginSheet.swift in Sources */,
 				E5N0000022F3B941A00049557 /* SessionSkillsView.swift in Sources */,

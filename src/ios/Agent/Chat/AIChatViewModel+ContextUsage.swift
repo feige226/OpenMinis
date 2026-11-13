@@ -322,6 +322,8 @@ extension AIChatViewModel {
                 level = thinkLvl.displayName
             case .openAI, .openAIResponses, .openRouter, .xAI, .kimiCode, .githubCopilot:
                 level = OpenAIAgentProvider.reasoningEffort(for: model, level: thinkLvl) ?? "—"
+            case .trae, .traeCN, .raccoon:
+                level = OpenAIAgentProvider.reasoningEffort(for: model, level: thinkLvl) ?? "—"
             case .unsupported:
                 level = "—"
             case .antigravity:

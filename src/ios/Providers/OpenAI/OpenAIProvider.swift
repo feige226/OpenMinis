@@ -561,12 +561,17 @@ final class OpenAIProvider: LLMProvider {
 
     // MARK: - LLMProvider
 
+    var nativeAccountChannel: NativeAccountChannel?
+
     func sendMessage(
         messages: [LLMMessage],
         systemPrompt: String?,
         maxTokens: Int,
         temperature: Double?
     ) async throws -> LLMResponse {
+        if nativeAccountChannel != nil {
+            return try await sendMessageViaStream(messages: messages, systemPrompt: systemPrompt, maxTokens: maxTokens, temperature: temperature)
+        }
         let useChat = usesChatCompletionsAPI
 
         // [T-codex-oauth-mandatory-stream] Codex OAuth backend rejects
@@ -703,6 +708,9 @@ final class OpenAIProvider: LLMProvider {
         maxTokens: Int,
         temperature: Double?
     ) async throws -> AsyncThrowingStream<LLMStreamChunk, Error> {
+        if let nativeAccountChannel {
+            return try await nativeAccountChannel.streamMessage(model: model, messages: messages, systemPrompt: systemPrompt, maxTokens: maxTokens, temperature: temperature)
+        }
         let useChat = usesChatCompletionsAPI
         let serialized = messages.map { useChat ? Self.openAIMessageDict($0) : Self.responsesAPIMessageDict($0) }
         let request = try await buildRequest(
@@ -941,6 +949,7 @@ final class OpenAIProvider: LLMProvider {
         body: [String: Any],
         isResponsesAPI: Bool
     ) async throws -> (AsyncThrowingStream<String, Error>, Int) {
+        if let nativeAccountChannel { return try await nativeAccountChannel.stream(body: body) }
         let url: URL
         var request: URLRequest
 

@@ -31,6 +31,9 @@ enum ProviderType: String, Codable, CaseIterable, Hashable, Sendable {
     /// is preserved (shown as "Unsupported", unusable) and not silently rewritten
     /// to a wrong type on the next save. The original raw string is kept alongside
     /// (see ProviderInstance.unknownProviderTypeRaw) for faithful round-tripping.
+    case trae
+    case traeCN
+    case raccoon
     case unsupported
 
     /// Decode a raw provider-type string, never throwing: an unrecognized value
@@ -50,6 +53,9 @@ enum ProviderType: String, Codable, CaseIterable, Hashable, Sendable {
         case .xAI: return "xAI (Grok)"
         case .kimiCode: return "Kimi Code"
         case .githubCopilot: return "GitHub Copilot"
+        case .trae: return "Trae"
+        case .traeCN: return "Trae CN"
+        case .raccoon: return "Raccoon"
         case .unsupported: return "Unsupported"
         }
     }
@@ -75,7 +81,7 @@ enum ProviderType: String, Codable, CaseIterable, Hashable, Sendable {
     /// back at the catalog already seeded.
     var oauthSupportsModelDiscovery: Bool {
         switch self {
-        case .anthropic, .gemini, .antigravity, .openRouter, .xAI, .kimiCode, .githubCopilot:
+        case .anthropic, .gemini, .antigravity, .openRouter, .xAI, .kimiCode, .githubCopilot, .trae, .traeCN, .raccoon:
             // These OAuth branches all reach a real /models endpoint.
             return true
         case .openAI:
@@ -105,6 +111,7 @@ enum ProviderType: String, Codable, CaseIterable, Hashable, Sendable {
         // Deliberately empty: the task requires the list come from the server
         // (`model_picker_enabled`), never a compiled-in guess that would go
         // stale and offer models the account cannot use.
+        case .trae, .traeCN, .raccoon: return []
         case .githubCopilot: return []
         case .unsupported: return []
         }
@@ -128,6 +135,9 @@ enum ProviderType: String, Codable, CaseIterable, Hashable, Sendable {
             return AppLocalized("Works with the Grok series of models")
         case .kimiCode:
             return AppLocalized("Sign in with your Kimi Code / Coding Plan subscription")
+        case .trae: return AppLocalized("Sign in with your Trae account in the browser.")
+        case .traeCN: return AppLocalized("Trae CN uses a third-party gateway (trae-api-cn.mchost.guru). Your prompts and tokens are sent to this gateway.")
+        case .raccoon: return AppLocalized("Sign in with your Raccoon account in the browser.")
         case .githubCopilot:
             return AppLocalized("Sign in with GitHub — unofficial, use at your own risk")
         case .antigravity:
@@ -148,6 +158,7 @@ enum ProviderType: String, Codable, CaseIterable, Hashable, Sendable {
         case .openAIResponses: return .vision
         case .xAI: return .vision
         case .kimiCode: return .vision
+        case .trae, .traeCN, .raccoon: return .textOnly
         case .githubCopilot: return .vision
         case .unsupported: return .vision
         }

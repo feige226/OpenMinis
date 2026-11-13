@@ -1,0 +1,143 @@
+name: iOS provider build
+
+on:
+  push:
+    branches: [feat/trae-raccoon-providers]
+    paths:
+      - 'src/ios/**'
+      - 'deps/**'
+      - 'scripts/**'
+      - '.github/workflows/ios-providers.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ios-providers-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ios:
+    name: Build unsigned iOS app
+    runs-on: macos-26
+    timeout-minutes: 120
+    env:
+      NSUnbufferedIO: 'YES'
+    steps:
+      - uses: actions/checkout@v4
+      - name: Initialize iOS submodules only
+        run: git submodule update --init --recursive deps/ish
+      - name: Select Xcode with iOS 26.2 SDK or newer
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import glob, os, re, subprocess
+          candidates = []
+          for app in glob.glob('/Applications/Xcode*.app'):
+              developer = app + '/Contents/Developer'
+              env = dict(os.environ, DEVELOPER_DIR=developer)
+              result = subprocess.run(['xcrun', '--sdk', 'iphoneos', '--show-sdk-version'], env=env, capture_output=True, text=True)
+              version = tuple(map(int, re.findall(r'\d+', result.stdout)))
+              if result.returncode == 0 and version >= (26, 2):
+                  candidates.append((version, developer))
+          if not candidates:
+              raise SystemExit('This runner needs Xcode with iOS SDK >= 26.2')
+          selected = max(candidates)[1]
+          subprocess.run(['sudo', 'xcode-select', '-s', selected], check=True)
+          PY
+          xcodebuild -version
+          xcrun --sdk iphoneos --show-sdk-version
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: deps/rclone-mobile/go.mod
+          cache-dependency-path: deps/rclone-mobile/go.sum
+      - name: Install native build tools
+        shell: bash
+        run: |
+          set -euo pipefail
+          brew install ninja llvm lld libarchive pkg-config meson
+          # LLVM no longer includes LLD; the guest VDSO needs the ELF linker.
+          echo "$(brew --prefix lld)/bin" >> "$GITHUB_PATH"
+          # libarchive is keg-only; make fakefsify's native Meson probe reliable.
+          echo "PKG_CONFIG_PATH=$(brew --prefix libarchive)/lib/pkgconfig${PKG_CONFIG_PATH:+:$PKG_CONFIG_PATH}" >> "$GITHUB_ENV"
+          xcodebuild -downloadComponent MetalToolchain
+          xcrun -sdk iphoneos metal --version
+          cp src/ios/Configs/ProviderCustomization.xcconfig.example src/ios/Configs/ProviderCustomization.xcconfig
+      - name: Fingerprint native toolchain and iSH revision
+        id: native-inputs
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p build
+          {
+            xcodebuild -version
+            xcrun --sdk iphoneos --show-sdk-version
+            xcrun --sdk iphonesimulator --show-sdk-version
+            go version
+            meson --version
+            ninja --version
+            brew list --versions llvm lld libarchive
+            git submodule status --recursive deps/ish
+          } > build/native-toolchain.txt
+          cat build/native-toolchain.txt
+          echo "fingerprint=$(shasum -a 256 build/native-toolchain.txt | cut -d ' ' -f 1)" >> "$GITHUB_OUTPUT"
+      - name: Swift syntax and project checks
+        run: |
+          python3 scripts/ios-unit-tests/static_check.py
+          plutil -lint src/ios/Minis.xcodeproj/project.pbxproj
+          for source in src/ios/Providers/NativeAccounts/*.swift; do
+            xcrun swiftc -parse "$source"
+          done
+      - uses: actions/cache@v4
+        id: native-cache
+        with:
+          path: |
+            deps/lame-build
+            deps/frameworks
+            deps/libs
+            deps/include
+            deps/resources
+          key: ios-native-v2-${{ runner.os }}-${{ runner.arch }}-${{ steps.native-inputs.outputs.fingerprint }}-${{ hashFiles('deps/build_lame.sh', 'deps/build_ffmpeg.sh', 'deps/build_ish.sh', 'deps/build_aot.sh', 'deps/build_rclone_ios.sh', 'deps/prepare_alpine_rootfs.sh', 'deps/lame-3.100/**', 'deps/ffmpeg-patch/**', 'deps/rclone-mobile/**', 'scripts/ci/**', '.github/workflows/ios-providers.yml', '.gitmodules') }}
+      - name: Build native dependencies
+        if: steps.native-cache.outputs.cache-hit != 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          for script in build_lame build_ffmpeg build_ish prepare_alpine_rootfs build_rclone_ios; do
+            bash "deps/${script}.sh" 2>&1 | tee "build/${script}.log"
+          done
+      - name: Verify native dependencies (including cache hits)
+        run: python3 scripts/ci/check_ios_native.py
+      - name: Build iOS device app without signing
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p build
+          xcodebuild -project src/ios/Minis.xcodeproj -scheme Minis \
+            -configuration Debug -destination 'generic/platform=iOS' \
+            -derivedDataPath build/DerivedData -resultBundlePath build/Minis.xcresult \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO build 2>&1 | tee build/ios-build.log
+      - name: Package unsigned IPA
+        run: |
+          test -f build/DerivedData/Build/Products/Debug-iphoneos/Minis.app/Info.plist
+          mkdir -p build/package/Payload
+          ditto build/DerivedData/Build/Products/Debug-iphoneos/Minis.app build/package/Payload/Minis.app
+          cd build/package
+          zip -qry ../OpenMinis-unsigned.ipa Payload
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ios-build-logs
+          path: |
+            build/*.log
+            build/native-toolchain.txt
+            build/Minis.xcresult
+          if-no-files-found: ignore
+          retention-days: 7
+      - uses: actions/upload-artifact@v4
+        with:
+          name: OpenMinis-unsigned-iOS
+          path: build/OpenMinis-unsigned.ipa
+          retention-days: 7

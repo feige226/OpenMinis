@@ -75,6 +75,7 @@ enum QuotaVendorDetector {
         case .xAI: return .xAI
         case .kimiCode: return .kimiCode
         case .githubCopilot: return .githubCopilot
+        case .trae, .traeCN, .raccoon: return .unknown
         case .unsupported: return .unknown
         }
     }

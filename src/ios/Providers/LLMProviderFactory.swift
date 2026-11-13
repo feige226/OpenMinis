@@ -78,6 +78,8 @@ enum LLMProviderFactory {
             return openCode(makeKimiProvider(instance: instance, model: entry.model))
         case .githubCopilot:
             return openCode(makeCopilotProvider(instance: instance, model: entry.model))
+        case .trae, .traeCN, .raccoon:
+            return finish(makeNativeAccountProvider(instance: instance, model: entry.model))
         case .unsupported:
             throw FactoryError.voiceOnlyProvider
         }
@@ -97,6 +99,14 @@ enum LLMProviderFactory {
     @discardableResult
     static func applyAzure(_ provider: OpenAIProvider, instance: ProviderInstance) -> OpenAIProvider {
         if instance.azureMode { provider.isAzure = true }
+        return provider
+    }
+
+    static func makeNativeAccountProvider(instance: ProviderInstance, model: LLMModel) -> OpenAIProvider {
+        let provider = OpenAIProvider(apiKey: "", model: model)
+        provider.nativeAccountChannel = NativeAccountChannel(instanceId: instance.id, type: instance.providerType)
+        provider.customBaseURL = instance.providerType == .raccoon ? RaccoonSite.work.apiBase : instance.providerType.traeSite.origin(base: nil)
+        provider.providerInstanceId = instance.id
         return provider
     }
 

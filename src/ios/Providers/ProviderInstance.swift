@@ -349,6 +349,8 @@ struct ProviderInstance: Identifiable, Codable, Hashable {
             return ProviderKeychainHelper.loadOAuthToken(
                 instanceId: id, as: KimiTokenStorage.self, caller: "hasAnyCredential"
             ) != nil
+        case .trae, .traeCN, .raccoon:
+            return NativeAccountOAuthManager.shared.isAuthenticated(instanceId: id)
         case .githubCopilot:
             // [T-copilot-provider] The GitHub token is the credential; the
             // session token is derived and may legitimately be absent.

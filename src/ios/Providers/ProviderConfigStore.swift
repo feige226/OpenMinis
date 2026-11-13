@@ -1377,6 +1377,8 @@ final class ProviderConfigStore: ObservableObject {
         // (matching the apiKey / manualOAuthToken encoding) under "oauthToken".
         let oauthTokenBlob: Data? = {
             switch instance.providerType {
+            case .trae, .traeCN, .raccoon:
+                return ProviderKeychainHelper.loadOAuthToken(instanceId: instanceId, as: NativeAccountToken.self).flatMap { try? JSONEncoder().encode($0) }
             case .anthropic:
                 return ProviderKeychainHelper.loadOAuthToken(instanceId: instanceId, as: ClaudeTokenStorage.self).flatMap { try? JSONEncoder().encode($0) }
             case .openAI:
@@ -1498,6 +1500,10 @@ final class ProviderConfigStore: ObservableObject {
         if let oauthB64 = dict["oauthToken"] as? String, !oauthB64.isEmpty,
            let blob = Data(base64Encoded: oauthB64) {
             switch providerType {
+            case .trae, .traeCN, .raccoon:
+                if let t = try? JSONDecoder().decode(NativeAccountToken.self, from: blob), t.providerType == providerType {
+                    ProviderKeychainHelper.saveOAuthToken(t, instanceId: instance.id)
+                }
             case .anthropic:
                 if let t = (try? JSONDecoder().decode(ClaudeTokenStorage.self, from: blob))
                     ?? Self.decodeClaudeTokenFromRawOAuth(blob) {
@@ -3175,6 +3181,8 @@ final class ProviderConfigStore: ObservableObject {
         // OAuth-login paths keep their required client UA, so we never pass it there.
         let ua = instance.supportsCustomUserAgent ? instance.effectiveCustomUserAgent : nil
         switch (instance.providerType, instance.credentialType) {
+        case (.trae, _), (.traeCN, _), (.raccoon, _):
+            return try await NativeAccountModels.fetch(instanceId: instance.id, type: instance.providerType)
         case (.anthropic, .apiKey):
             guard let key = modelFetchAPIKey(for: instance) else {
                 throw ModelRefreshError.noCredential
@@ -3480,6 +3488,8 @@ final class ProviderConfigStore: ObservableObject {
         case .gemini: return "https://generativelanguage.googleapis.com"
         case .openRouter: return "https://openrouter.ai/api"
         case .antigravity: return nil // No public base URL
+        case .trae, .traeCN: return instance.providerType.traeSite.origin(base: nil)
+        case .raccoon: return RaccoonSite.work.apiBase
         case .unsupported: return nil // synced from newer build
         }
     }

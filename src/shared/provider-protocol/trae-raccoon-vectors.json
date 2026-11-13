@@ -1,0 +1,36 @@
+{
+  "description": "Offline wire examples derived from the supplied Apelin reference; not captured authenticated traffic. Tokens and authorization codes are deliberately absent.",
+  "trae": {
+    "messagesInput": [
+      {"role": "developer", "content": "Use local tools."},
+      {"role": "user", "content": "What is 1 + 1?"},
+      {"role": "assistant", "content": null, "reasoning_content": "discard historical reasoning", "tool_calls": [{"id": "call_1", "type": "function", "function": {"name": "calculate", "arguments": "{\"expression\":\"1+1\"}"}}]},
+      {"role": "tool", "tool_call_id": "call_1", "content": "2"},
+      {"role": "assistant", "content": ""}
+    ],
+    "messagesExpected": [
+      {"role": "system", "content": [{"type": "text", "text": "Use local tools."}]},
+      {"role": "user", "content": [{"type": "text", "text": "What is 1 + 1?"}]},
+      {"role": "assistant", "content": [{"type": "text", "text": ""}], "function_call": [{"id": "call_1", "type": "function", "function": {"name": "calculate", "arguments": "{\"expression\":\"1+1\"}"}}]},
+      {"role": "tool", "tool_call_id": "call_1", "content": [{"type": "text", "text": "2"}]}
+    ],
+    "toolsInput": [{"type": "function", "function": {"name": "calculate", "parameters": {"type": "object", "properties": {"expression": {"type": "string"}}}}}],
+    "toolsExpected": [{"type": "function", "function": {"name": "calculate", "parameters": "{\"type\":\"object\",\"properties\":{\"expression\":{\"type\":\"string\"}}}"}}],
+    "toolStream": "event: output\r\ndata: {\"reasoning_content\":\"计算中\"}\r\n\r\nevent: output\r\ndata: {\"tool_calls\":[{\"index\":0,\"id\":\"call_1\",\"function_call\":{\"name\":\"calculate\",\"arguments\":\"{\\\"expression\\\":\"}}]}\r\n\r\nevent: output\r\ndata: {\"tool_calls\":[{\"index\":0,\"function_call\":{\"arguments\":\"\\\"1+1\\\"}\"}}]}\r\n\r\nevent: token_usage\r\ndata: {\"prompt_tokens\":10,\"completion_tokens\":4,\"total_tokens\":14}\r\n\r\nevent: done\r\ndata: {\"finish_reason\":\"stop\"}\r\n\r\n",
+    "toolStreamExpected": {"reasoning": "计算中", "toolId": "call_1", "toolName": "calculate", "arguments": {"expression": "1+1"}, "finishReason": "tool_calls", "inputTokens": 10, "outputTokens": 4},
+    "emptyStream": ": heartbeat\n\n",
+    "emptyStreamExpected": "error",
+    "truncatedStream": "event: output\ndata: {\"response\":\"你好\"}\n\n",
+    "truncatedStreamExpected": {"text": "你好", "finishReason": "length"},
+    "errorStream": "event: error\ndata: {\"code\":4001,\"message\":\"param is invalid\"}\n\n",
+    "errorStreamExpected": "error"
+  },
+  "raccoon": {
+    "catalogInput": {"data": {"categories": [{"models": [{"model_name": "sn-deepseek-v4-1-flash", "display_name": "DeepSeek Flash", "visible": true, "params": {"max_tokens": 100000}}, {"model_name": "Auto", "visible": true}, {"model_name": "hidden-model", "visible": false}]}]}},
+    "catalogExpectedIds": ["sn-deepseek-v4-1-flash"],
+    "maxOutputTokensExpected": 65536,
+    "reasoningEnabledExpected": {"extra_body": {"thinking": {"type": "enabled"}}},
+    "stream": "data: {\"choices\":[{\"delta\":{\"reasoning_content\":\"计算中\"},\"finish_reason\":null}]}\n\ndata: {\"choices\":[{\"delta\":{\"content\":\"2\"},\"finish_reason\":null}]}\n\ndata: {\"choices\":[{\"delta\":{},\"finish_reason\":\"stop\"}],\"usage\":{\"prompt_tokens\":10,\"completion_tokens\":4}}\n\ndata: [DONE]\n\n",
+    "streamExpected": {"text": "2", "reasoning": "计算中", "finishReason": "stop", "inputTokens": 10, "outputTokens": 4}
+  }
+}

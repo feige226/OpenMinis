@@ -902,7 +902,7 @@ struct AddProviderView: View {
         // stored, shown as a configured credential, and then ignored on every
         // request. There is also no token a user could paste: the credential is
         // minted from a GitHub OAuth token and lives ~25 minutes.
-        if selectedType != .antigravity && selectedType != .githubCopilot && !pendingOAuthDone {
+        if selectedType != .antigravity && selectedType != .githubCopilot && selectedType?.isNativeAccount != true && !pendingOAuthDone {
             Section {
                 TextField(defaultBaseURL, text: $customBaseURLInput)
                     .font(.system(.body, design: .monospaced))
@@ -1080,6 +1080,7 @@ struct AddProviderView: View {
             // [T-copilot-provider] Same shape — the device flow lives in
             // CopilotDeviceLoginSheet so the risk notice is shown before it starts.
             case .githubCopilot: break
+            case .trae, .traeCN, .raccoon: try await NativeAccountOAuthManager.shared.login(instanceId: pendingInstanceId, type: type)
             case .unsupported: break // free / unsupported — no OAuth
             }
             oauthAuthTime = Date()
@@ -1115,6 +1116,8 @@ struct AddProviderView: View {
             // The GitHub token is the credential worth showing; the session
             // token is derived and rotates every ~25 minutes.
             token = ProviderKeychainHelper.loadOAuthToken(instanceId: pendingInstanceId, as: CopilotTokenStorage.self)?.githubToken
+        case .trae, .traeCN, .raccoon:
+            token = ProviderKeychainHelper.loadOAuthToken(instanceId: pendingInstanceId, as: NativeAccountToken.self)?.accessToken
         case .unsupported:
             token = nil // free / unsupported — no token
         }
@@ -1195,6 +1198,7 @@ struct AddProviderView: View {
         case .xAI: return AppLocalized("Sign in with xAI")
         case .kimiCode: return AppLocalized("Sign in with Kimi Code")
         case .githubCopilot: return AppLocalized("Sign in with GitHub")
+        case .trae, .traeCN, .raccoon: return AppLocalized("Sign In")
         case .unsupported: return AppLocalized("Sign In")
         }
     }
@@ -1211,6 +1215,7 @@ struct AddProviderView: View {
         case .xAI: return "xai-..."
         case .kimiCode: return "" // OAuth only
         case .githubCopilot: return "" // OAuth only
+        case .trae, .traeCN, .raccoon: return ""
         case .unsupported: return ""
         }
     }
@@ -1226,6 +1231,7 @@ struct AddProviderView: View {
         case .xAI: return "xAI (Grok)"
         case .kimiCode: return "Kimi Code"
         case .githubCopilot: return "GitHub Copilot"
+        case .trae, .traeCN, .raccoon: return type.displayName
         case .unsupported: return AppLocalized("Unsupported")
         }
     }
@@ -1254,7 +1260,7 @@ struct AddProviderView: View {
         // there was ignored by the factory. Offering a credential the provider
         // cannot use is worse than offering none: it looks like the supported
         // path and fails with no explanation.
-        case .githubCopilot:
+        case .githubCopilot, .trae, .traeCN, .raccoon:
             return [.oauth]
         case .openAIResponses, .gemini:
             return [.apiKey]
@@ -1293,6 +1299,8 @@ struct AddProviderView: View {
             // [T-copilot-provider] The risk warning belongs where the user
             // decides, not only inside the sign-in sheet.
             return AppLocalized("Unofficial integration. Using it may get your GitHub Copilot account restricted — use at your own risk.")
+        case (.trae, .oauth), (.traeCN, .oauth), (.raccoon, .oauth):
+            return type.pickerSubtitle
         case (.unsupported, _):
             return AppLocalized("This provider isn't supported in this app version.")
         }
@@ -1328,6 +1336,10 @@ struct AddProviderView: View {
         case .githubCopilot:
             Image(systemName: "chevron.left.forwardslash.chevron.right")
                 .foregroundStyle(.primary)
+        case .trae, .traeCN:
+            Image("ProviderTrae").resizable().scaledToFit().frame(width: 28, height: 28)
+        case .raccoon:
+            Image("ProviderRaccoon").resizable().scaledToFit().frame(width: 28, height: 28)
         case .unsupported:
             Image(systemName: "questionmark.circle")
                 .foregroundStyle(.gray)
@@ -1345,6 +1357,7 @@ struct AddProviderView: View {
         case .xAI: return .gray
         case .kimiCode: return .indigo
         case .githubCopilot: return .primary
+        case .trae, .traeCN, .raccoon: return .green
         case .unsupported: return .gray
         }
     }
