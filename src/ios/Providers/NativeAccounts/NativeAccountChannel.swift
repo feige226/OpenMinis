@@ -106,7 +106,8 @@ struct NativeAccountChannel: Sendable {
                            let text = delta["content"] as? String { continuation.yield(.text(text)) }
                         if let usage = json["usage"] as? [String: Any] {
                             continuation.yield(.usage(LLMUsage(inputTokens: usage["prompt_tokens"] as? Int ?? 0,
-                                outputTokens: usage["completion_tokens"] as? Int ?? 0)))
+                                outputTokens: usage["completion_tokens"] as? Int ?? 0,
+                                cacheCreationInputTokens: nil, cacheReadInputTokens: nil)))
                         }
                         if let reason = (json["choices"] as? [[String: Any]])?.first?["finish_reason"] as? String {
                             continuation.yield(.finished(stopReason: reason))
@@ -124,6 +125,7 @@ struct NativeAccountChannel: Sendable {
 /// Raccoon may send a separate usage frame after it.
 struct NativeAccountSSEState {
     let isTrae: Bool
+    init(isTrae: Bool) { self.isTrae = isTrae }
     private(set) var streamEnded = false
     private(set) var finishSeen = false
     private var event = ""
