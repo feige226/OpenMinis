@@ -149,7 +149,7 @@ struct ProviderInstance: Identifiable, Codable, Hashable {
         // [T-copilot-provider] Copilot's User-Agent is part of the protocol —
         // the API rejects requests that do not look like the editor plugin — so
         // it must not be user-overridable the way a proxy's UA is.
-        case .gemini, .antigravity, .githubCopilot, .unsupported:
+        case .gemini, .antigravity, .githubCopilot, .trae, .traeCN, .raccoon, .unsupported:
             return false
         }
     }
@@ -186,7 +186,7 @@ struct ProviderInstance: Identifiable, Codable, Hashable {
         switch providerType {
         case .openAI, .openAIResponses, .openRouter, .xAI, .kimiCode, .githubCopilot:
             return OpenCodeChannel.looksLikeOpenCodeBaseURL(effectiveCustomBaseURL)
-        case .anthropic, .gemini, .antigravity, .unsupported:
+        case .anthropic, .gemini, .antigravity, .trae, .traeCN, .raccoon, .unsupported:
             return false
         }
     }
@@ -350,7 +350,9 @@ struct ProviderInstance: Identifiable, Codable, Hashable {
                 instanceId: id, as: KimiTokenStorage.self, caller: "hasAnyCredential"
             ) != nil
         case .trae, .traeCN, .raccoon:
-            return NativeAccountOAuthManager.shared.isAuthenticated(instanceId: id)
+            return ProviderKeychainHelper.loadOAuthToken(
+                instanceId: id, as: NativeAccountToken.self, caller: "hasAnyCredential"
+            ).map { $0.providerType == providerType && !$0.accessToken.isEmpty } ?? false
         case .githubCopilot:
             // [T-copilot-provider] The GitHub token is the credential; the
             // session token is derived and may legitimately be absent.

@@ -21,7 +21,7 @@ def require_file(path):
 def require_arm64(path):
     if require_file(path):
         result = subprocess.run(
-            ["xcrun", "lipo", "-verify_arch", "arm64", str(path)],
+            ["xcrun", "lipo", str(path), "-verify_arch", "arm64"],
             capture_output=True, text=True,
         )
         if result.returncode:
