@@ -186,7 +186,12 @@ final class NativeAccountOAuthManager: NSObject, ObservableObject, SFSafariViewC
             try Task.checkCancellation()
             // A logout/re-login or a newer cloud credential must win over this stale flight.
             guard let current = self.token(instanceId: instanceId) else { throw CancellationError() }
-            if current != existing { return current }
+            var currentIdentity = current
+            var previousIdentity = existing
+            currentIdentity.modelFunctions = [:]
+            previousIdentity.modelFunctions = [:]
+            if currentIdentity != previousIdentity { return current }
+            updated.modelFunctions = current.modelFunctions
             ProviderKeychainHelper.saveOAuthToken(updated, instanceId: instanceId)
             guard self.token(instanceId: instanceId) == updated else {
                 throw LLMError.providerError(message: "Could not securely save the renewed account.")
