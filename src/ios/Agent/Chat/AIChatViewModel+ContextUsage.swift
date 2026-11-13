@@ -241,7 +241,7 @@ extension AIChatViewModel {
         // [T-copilot-provider] Copilot's /models reports `supports.thinking`
         // per model, so an explicit false there is authoritative — it belongs
         // with the strict group, not the permissive one.
-        case .anthropic, .gemini, .antigravity, .githubCopilot, .unsupported:
+        case .anthropic, .gemini, .antigravity, .githubCopilot, .trae, .traeCN, .raccoon, .unsupported:
             return false
         }
     }
