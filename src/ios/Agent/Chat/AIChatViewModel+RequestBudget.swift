@@ -414,23 +414,17 @@ extension AIChatViewModel {
             .appendingPathComponent("browser", isDirectory: true)
     }
 
-    /// App Group container root for FileProvider-visible directories.
-    /// Everything under this path is exposed to iOS Files via the replicated
-    /// FileProvider extension. Keep ONLY user-facing subdirs (shared, skills,
-    /// memory) here — anything else leaks into "On My iPhone → Minis".
+    /// User-facing directories, in the App Group when available or in the
+    /// app's persistent sandbox otherwise. Keep ONLY shared, skills and memory
+    /// here: the FileProvider exposes this tree when App Groups are enabled.
     nonisolated static var minisAppGroupRoot: URL {
-        FileManager.default.containerURL(
-            forSecurityApplicationGroupIdentifier: SharedContainerStore.appGroupID
-        )!.appendingPathComponent("MinisFileProvider", isDirectory: true)
+        MinisStoragePaths.current.providerRoot
     }
 
-    /// App Group subdirectory for private metadata that must NOT be exposed
-    /// to iOS Files (mounted-folders.json, FileProvider extension logs, etc).
-    /// Sibling of `minisAppGroupRoot` inside the same App Group container.
+    /// Private metadata, always a sibling of `minisAppGroupRoot` so credentials
+    /// cannot be exposed by FileProvider, including in sandbox fallback mode.
     nonisolated static var minisConfigRoot: URL {
-        let url = FileManager.default.containerURL(
-            forSecurityApplicationGroupIdentifier: SharedContainerStore.appGroupID
-        )!.appendingPathComponent("MinisConfig", isDirectory: true)
+        let url = MinisStoragePaths.current.configRoot
         try? FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
         return url
     }

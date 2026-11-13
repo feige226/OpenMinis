@@ -13,10 +13,9 @@ final class FileProviderExtension: NSObject, NSFileProviderReplicatedExtension {
 
     /// Root directory for all FileProvider-visible files in the App Group container.
     static var providerRoot: URL {
-        let container = FileManager.default.containerURL(
-            forSecurityApplicationGroupIdentifier: "group.com.openminis.app"
-        )!
-        let url = container.appendingPathComponent("MinisFileProvider", isDirectory: true)
+        // The app does not register a domain without App Groups. Still avoid a
+        // trap if the system launches a stale domain after the app is re-signed.
+        let url = MinisStoragePaths.current.providerRoot
         try? FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
         return url
     }

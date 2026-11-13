@@ -625,6 +625,8 @@
 		A1ACCB000000000000000004 /* TraeWire.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1ACCA000000000000000004 /* TraeWire.swift */; };
 		A1ACCB000000000000000005 /* RaccoonOAuth.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1ACCA000000000000000005 /* RaccoonOAuth.swift */; };
 		A1ACCB000000000000000006 /* RaccoonWire.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1ACCA000000000000000006 /* RaccoonWire.swift */; };
+		F02611130000000000000001 /* MinisStoragePaths.swift in Sources */ = {isa = PBXBuildFile; fileRef = F02611130000000000000003 /* MinisStoragePaths.swift */; };
+		F02611130000000000000002 /* MinisStoragePaths.swift in Sources */ = {isa = PBXBuildFile; fileRef = F02611130000000000000003 /* MinisStoragePaths.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -1453,6 +1455,7 @@
 		A1ACCA000000000000000004 /* TraeWire.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TraeWire.swift; sourceTree = "<group>"; };
 		A1ACCA000000000000000005 /* RaccoonOAuth.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RaccoonOAuth.swift; sourceTree = "<group>"; };
 		A1ACCA000000000000000006 /* RaccoonWire.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RaccoonWire.swift; sourceTree = "<group>"; };
+		F02611130000000000000003 /* MinisStoragePaths.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MinisStoragePaths.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -2107,6 +2110,7 @@
 				E5E000019 /* ShareCoordinator.swift */,
 				E5E0000A2 /* ExternalFileImporter.swift */,
 				E5E000017 /* SharedContainerStore.swift */,
+				F02611130000000000000003 /* MinisStoragePaths.swift */,
 				AADDA9E02F6ECCF400B66649 /* ThumbnailCache.swift */,
 			);
 			path = Shared;
@@ -3478,6 +3482,7 @@
 				E5D00026 /* OnboardingModelSelectionView.swift in Sources */,
 				E5E000006 /* PendingShare.swift in Sources */,
 				E5E000007 /* SharedContainerStore.swift in Sources */,
+				F02611130000000000000001 /* MinisStoragePaths.swift in Sources */,
 				E5E000008 /* ShareCoordinator.swift in Sources */,
 				E5E0000A1 /* ExternalFileImporter.swift in Sources */,
 				E5G000001 /* BackgroundKeepAliveManager.swift in Sources */,
@@ -3671,6 +3676,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				E5FP00001 /* FileProviderExtension.swift in Sources */,
+				F02611130000000000000002 /* MinisStoragePaths.swift in Sources */,
 				E5FP00002 /* FileProviderEnumerator.swift in Sources */,
 				E5FP00003 /* FileProviderItem.swift in Sources */,
 				E5FP00200 /* FPSyncTraceLog.swift in Sources */,
