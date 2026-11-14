@@ -74,32 +74,48 @@ workflows:
             CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY= \
             build
 
-      # Provision the on-device toolchain. The archives are NOT committed (67MB);
-      # they are assembled here from pinned public sources.
-      #
-      # Honest status: clang comes from a pinned archive with a verified SHA-256,
-      # but the linker/signer half is *not* solved yet — see the failure below.
-      # Failing loudly is deliberate: a silently SDK-less bundle would produce an
-      # app whose "doctor" says not-ready, which is confusing to debug later.
+      # Provision the on-device toolchain from the pinned release.
+      # Assets are 4MB chunks (single-shot uploads of the 28-39MB files timed
+      # out); they are concatenated here and verified against a known SHA-256.
+      # A mismatch fails the build: a silently corrupted compiler is worse than
+      # no compiler.
       - name: Stage on-device toolchain resources
         script: |
           set -euo pipefail
-          OUT=src/ios/ToolchainResources
-          mkdir -p "$OUT" /tmp/tk/bin /tmp/tk/lib /tmp/clang_x
-          CLANG_URL="https://github.com/susu123oss/CodexApp-Runtime/releases/download/runtime-ollvm-23.1.1-e54f2878240e/OLLVMRuntime.tar.gz"
-          CLANG_SHA="31667a83685e975dfdcd16578a0a386b7b9acc8e5f519b27f6e5d32fdee096b6"
-          echo "==> clang (pinned, SHA-256 verified)"
-          curl -fL --retry 3 -o /tmp/clang.tgz "$CLANG_URL"
-          echo "$CLANG_SHA  /tmp/clang.tgz" | shasum -a 256 -c -
-          tar xzf /tmp/clang.tgz -C /tmp/clang_x --strip-components=1
-          cp /tmp/clang_x/bin/clang /tmp/tk/bin/
-          cp -R /tmp/clang_x/lib/clang /tmp/tk/lib/
-          echo "==> toolchain archive"
-          tar czf "$OUT/MinToolchain.tgz" -C /tmp tk
+          OUT=src/ios/ToolchainResources; mkdir -p "$OUT"
+          BASE="https://github.com/qq6688000/OpenMinisBuild/releases/download/native-toolchain-v1"
+          fetch() { # prefix, suffix list, expected sha, output
+            prefix=$1; list=$2; want=$3; out=$4
+            rm -f "$out"
+            for suffix in $list; do
+              # Verify each chunk landed whole: a truncated download silently
+              # corrupts the concatenation (seen while testing this pipeline).
+              ok=0
+              for attempt in 1 2 3 4 5; do
+                rm -f "/tmp/c.$suffix"
+                curl -fL --retry 3 -m 300 -o "/tmp/c.$suffix" "$BASE/$prefix$suffix" || true
+                sz=$(stat -f%z "/tmp/c.$suffix" 2>/dev/null || echo 0)
+                if [ "$sz" -gt 0 ] && { [ "$sz" -eq 4000000 ] || [ "$suffix" = "$last" ]; }; then
+                  ok=1; break
+                fi
+                echo "   retry $suffix (got $sz bytes)"; sleep 3
+              done
+              [ "$ok" -eq 1 ] || { echo "!! chunk $prefix$suffix failed to download" >&2; exit 1; }
+              cat "/tmp/c.$suffix" >> "$out"
+            done
+            got=$(shasum -a 256 "$out" | cut -d' ' -f1)
+            echo "   $out sha256=$got"
+            if [ "$got" != "$want" ]; then
+              echo "!! checksum mismatch for $out: want $want" >&2; exit 1
+            fi
+          }
+          last=aah
+          fetch sdk- "aaa aab aac aad aae aaf aag aah" \
+            ff94153313bb60e740b22edb548abe2e193dc84c78fc76f938f5222235f46aeb "$OUT/MinSDK.tgz"
+          last=aak
+          fetch tk-  "aaa aab aac aad aae aaf aag aah aai aaj aak" \
+            8eda57419100a136ddba544410eb7dd7329e03e5abbcbbc060bcfdd1c0bdd835 "$OUT/MinToolchain.tgz"
           ls -lh "$OUT"
-          echo "!! SDK archive not staged yet: the iPhoneOS SDK is not obtainable from"
-          echo "!! this runner without credentials. Shipping without it only affects"
-          echo "!! compiling against UIKit, not the command plumbing."
 
       - name: Package IPA
         script: |
@@ -110,19 +126,33 @@ workflows:
           rm -rf Payload Minis-unsigned.ipa
           mkdir Payload
           cp -R "$APP" Payload/
-          # Sign with the merged profile: the repo's public entitlements PLUS the
-          # private ones device testing proved are required for native spawn
-          # (probe v2 -> EPERM without them, v3/v5 -> works). Installing with the
-          # minimal probe set alone would drop app-group/CloudKit/HealthKit.
+          # Sign EVERY Mach-O in the bundle, not just the app binary.
+          # Only signing Minis.app/Minis left the three .appex binaries unsigned;
+          # iOS then refuses to load the extension and the app crashes as soon as
+          # a file/share entry point is touched. The original IPA has all three
+          # signed, so that is the shape we must reproduce.
           ENT="Configs/Minis.native.entitlements"
-          if command -v ldid >/dev/null 2>&1; then
-            echo "==> sign with $ENT"
-            ldid -S"$ENT" "Payload/Minis.app/Minis"
-            echo "==> verify"
-            ldid -e "Payload/Minis.app/Minis" | head -40
-          else
-            echo "!! ldid not available; IPA WILL NOT be able to spawn natives" >&2
+          if ! command -v ldid >/dev/null 2>&1; then
+            echo "!! ldid missing; IPA would ship unsigned extensions" >&2
+            exit 1
           fi
+          echo "==> signing app + extensions with $ENT"
+          ldid -S"$ENT" "Payload/Minis.app/Minis"
+          for APPEX in Payload/Minis.app/PlugIns/*.appex; do
+            [ -d "$APPEX" ] || continue
+            BIN=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$APPEX/Info.plist")
+            echo "    $APPEX/$BIN"
+            ldid -S"$ENT" "$APPEX/$BIN"
+          done
+          echo "==> verify every Mach-O is signed"
+          fail=0
+          for M in Payload/Minis.app/Minis Payload/Minis.app/PlugIns/*.appex/*; do
+            [ -f "$M" ] || continue
+            file "$M" | grep -q 'Mach-O' || continue
+            if ldid -e "$M" >/dev/null 2>&1; then echo "    ok $(basename "$M")"; else
+              echo "    UNSIGNED $(basename "$M")" >&2; fail=1; fi
+          done
+          [ "$fail" -eq 0 ] || { echo "!! unsigned binaries in bundle" >&2; exit 1; }
           zip -qry Minis-unsigned.ipa Payload
           ls -lh Minis-unsigned.ipa
     artifacts:
