@@ -44,9 +44,25 @@ static BOOL NBExecutableFile(NSString *path) {
     return access(p, X_OK) == 0;
 }
 
+/* [T-native-build] Single source of truth for where the toolchain lives.
+ * Never the app's tmp/: on iOS that location rejects exec (access X_OK and
+ * posix_spawn both return EPERM) even with no-sandbox + AppDataContainers,
+ * which is what broke the container-required builds. Library/Caches is inside
+ * the data container, writable, and executable. */
+NSString *NBSearchPathForSharedCache(NSString *name) {
+    NSArray *dirs = NSSearchPathForDirectoriesInDomains(NSCachesDirectory, NSUserDomainMask, YES);
+    NSString *base = dirs.count > 0 ? dirs[0] : nil;
+    // On iOS this is <Data>/Library/Caches; tolerate a macOS-style path.
+    NSString *root = [base stringByAppendingPathComponent:@"native-toolchain"];
+    [[NSFileManager defaultManager] createDirectoryAtPath:root
+                              withIntermediateDirectories:YES attributes:nil error:NULL];
+    return [root stringByAppendingPathComponent:name];
+}
+
 NSString *NBToolchainRoot(void) {
     // Same writable location used by the provision command.
-    NSString *root = [NSTemporaryDirectory() stringByAppendingPathComponent:@"minis-toolchain"];
+    NSString *root = [NBSearchPathForSharedCache(@"minis-toolchain") copy];
+    if (root.length == 0) root = [NSTemporaryDirectory() stringByAppendingPathComponent:@"minis-toolchain"];
     return root;
 }
 

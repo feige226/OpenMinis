@@ -26,6 +26,12 @@ typedef struct {
  * was built without one (normal App Store build: nothing is bundled). */
 NSString *NBToolchainRoot(void);
 
+/* [T-native-build] Writable toolchain staging area. Always <Data>/Library/Caches
+ * /native-toolchain/<name>. Never the app tmp dir: iOS rejects exec there
+ * (access X_OK and posix_spawn return EPERM) regardless of entitlements.
+ * Creates the directory and returns its child `name`, or nil on failure. */
+NSString *NBSearchPathForSharedCache(NSString *name);
+
 /* Stat/access the layout rooted at `root` (nil → NBToolchainRoot()). */
 NBToolchainProbe NBToolchainCheck(NSString *root);
 

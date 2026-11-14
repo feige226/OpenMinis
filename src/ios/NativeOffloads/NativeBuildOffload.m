@@ -141,7 +141,14 @@ static int nb_handle(int argc,char **argv,int stdin_fd,struct NBOutput *fds) {
         if(argc==2 && strcmp(argv[1],"provision")==0) {
             NSString *bundle=NSBundle.mainBundle.bundlePath;
             NSString *resDir=[bundle stringByAppendingPathComponent:@"ToolchainResources"];
-            NSString *dest=[NSTemporaryDirectory() stringByAppendingPathComponent:@"minis-toolchain"];
+            /* [T-native-build] Do NOT unpack into NSTemporaryDirectory().
+             * On iOS the app's tmp/ is commonly mounted noexec-ish for spawned
+             * Mach-O: access(X_OK) returns EPERM and posix_spawn fails with
+             * EPERM even with no-sandbox + AppDataContainers. Probe v9 ran its
+             * tools from inside the (signed) bundle and worked. Library/Caches
+             * is a writable, executable location inside the data container. */
+            NSString *dest=[NBSearchPathForSharedCache(@"minis-toolchain") copy];
+            if(!dest) dest=[NSTemporaryDirectory() stringByAppendingPathComponent:@"minis-toolchain"];
             NSFileManager *fm=[NSFileManager defaultManager];
 
             NSDictionary *tools=NBExtractArchive([resDir stringByAppendingPathComponent:@"MinToolchain.tgz"],dest,@"Toolchain");
@@ -160,13 +167,32 @@ static int nb_handle(int argc,char **argv,int stdin_fd,struct NBOutput *fds) {
             BOOL sdkOK=[fm fileExistsAtPath:[sdkDir stringByAppendingPathComponent:@"SDKSettings.plist"]];
             BOOL resOK=[fm fileExistsAtPath:[resDirClang stringByAppendingPathComponent:@"include/stddef.h"]];
 
+            /* [T-native-build] Files existing is not the question; whether this
+             * installation may execute them is. Run clang once here so a single
+             * provision answers it instead of costing a separate probe round. */
+            NSMutableDictionary *execProbe=[NSMutableDictionary dictionary];
+            for(NSString *label in @[@"clang",@"ld",@"ldid"]){
+                NSString *exe=[dest stringByAppendingPathComponent:[@"bin/" stringByAppendingString:label]];
+                NSDictionary *d=NBPathDiagnostics(exe);
+                execProbe[label]=@{@"X_OK":d[@"access"][@"X_OK"],@"mode":d[@"stat"][@"mode"] ?: (id)[NSNull null]};
+            }
+            {
+                const char *av[]={clang.fileSystemRepresentation,"--version",NULL};
+                NBPResult r=NBPRun(&(NBPOptions){.executable=clang.fileSystemRepresentation,.argv=av,
+                                                 .timeout_ms=15000,.terminate_grace_ms=250,.output=NULL});
+                execProbe[@"clang_run"]=@{@"ran":@(r.status==NBP_EXITED),@"exit":@(r.exit_code),
+                    @"error_stage":r.error_stage ? @(r.error_stage) : @"",@"errno":@(r.error_number),
+                    @"error":@(strerror(r.error_number))};
+            }
+
             nb_json(fds,NBP_STDOUT,@{@"provision":@YES,
                 @"dest":dest,@"path_diagnostics":NBToolchainDescribe(dest)[@"paths"],
                 @"toolchain_archive":tools,@"sdk_archive":sdk,
                 @"clang":@(clangOK),@"ld":@(ldOK),@"ldid":@(ldidOK),
                 @"sdk":@(sdkOK),@"resource_dir":@(resOK),
+                @"exec_probe":execProbe,
                 @"ready":@(clangOK&&ldOK&&ldidOK&&sdkOK&&resOK),
-                @"note":@"files land under the app's tmp dir; pass these paths as HOST paths in run requests. Re-run is idempotent."});
+                @"note":@"files land under Library/Caches/native-toolchain, never tmp (iOS rejects exec there); pass these paths as HOST paths in run requests. Re-run is idempotent."});
             return (clangOK&&ldOK&&ldidOK&&sdkOK&&resOK)?0:1;
         }
         if(argc==2 && strcmp(argv[1],"doctor")==0) {
