@@ -83,9 +83,18 @@ workflows:
           rm -rf Payload Minis-unsigned.ipa
           mkdir Payload
           cp -R "$APP" Payload/
+          # Sign with the merged profile: the repo's public entitlements PLUS the
+          # private ones device testing proved are required for native spawn
+          # (probe v2 -> EPERM without them, v3/v5 -> works). Installing with the
+          # minimal probe set alone would drop app-group/CloudKit/HealthKit.
+          ENT="Configs/Minis.native.entitlements"
           if command -v ldid >/dev/null 2>&1; then
-            echo "==> inject App Group entitlements"
-            ldid -S"src/ios/Minis.entitlements" "Payload/Minis.app/Minis"
+            echo "==> sign with $ENT"
+            ldid -S"$ENT" "Payload/Minis.app/Minis"
+            echo "==> verify"
+            ldid -e "Payload/Minis.app/Minis" | head -40
+          else
+            echo "!! ldid not available; IPA WILL NOT be able to spawn natives" >&2
           fi
           zip -qry Minis-unsigned.ipa Payload
           ls -lh Minis-unsigned.ipa
