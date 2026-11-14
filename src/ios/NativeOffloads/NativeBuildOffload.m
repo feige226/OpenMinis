@@ -145,7 +145,7 @@ static int nb_handle(int argc,char **argv,int stdin_fd,struct NBOutput *fds) {
             NSFileManager *fm=[NSFileManager defaultManager];
 
             NSDictionary *tools=NBExtractArchive([resDir stringByAppendingPathComponent:@"MinToolchain.tgz"],dest,@"Toolchain");
-            NSDictionary *sdk=NBExtractArchive([resDir stringByAppendingPathComponent:@"MinSDK.tgz"],dest,@"iPhoneOS16.5.sdk");
+            NSDictionary *sdk=NBExtractArchive([resDir stringByAppendingPathComponent:@"MinSDK.tgz"],[dest stringByAppendingPathComponent:@"iPhoneOS16.5.sdk"],@"iPhoneOS16.5.sdk");
 
             /* Trust nothing that was not checked: stat the things a build needs. */
             NSString *clang=[dest stringByAppendingPathComponent:@"bin/clang"];
@@ -153,7 +153,8 @@ static int nb_handle(int argc,char **argv,int stdin_fd,struct NBOutput *fds) {
             NSString *ldid=[dest stringByAppendingPathComponent:@"bin/ldid"];
             NSString *sdkDir=[dest stringByAppendingPathComponent:@"iPhoneOS16.5.sdk"];
             NSString *resDirClang=[dest stringByAppendingPathComponent:@"lib/clang/23"];
-            BOOL clangOK=[fm isExecutableFileAtPath:clang];
+            BOOL archivesOK=[tools[@"ok"] boolValue] && [sdk[@"ok"] boolValue];
+            BOOL clangOK=archivesOK && [fm isExecutableFileAtPath:clang];
             BOOL ldOK=[fm isExecutableFileAtPath:ld];
             BOOL ldidOK=[fm isExecutableFileAtPath:ldid];
             BOOL sdkOK=[fm fileExistsAtPath:[sdkDir stringByAppendingPathComponent:@"SDKSettings.plist"]];

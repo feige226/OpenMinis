@@ -13,8 +13,8 @@ static BOOL NBExecutableFile(NSString *path) {
 }
 
 NSString *NBToolchainRoot(void) {
-    // Staged next to the app executable: <Bundle>/Toolchain (probe layout).
-    NSString *root = [NSBundle.mainBundle.bundlePath stringByAppendingPathComponent:@"Toolchain"];
+    // Same writable location used by the provision command.
+    NSString *root = [NSTemporaryDirectory() stringByAppendingPathComponent:@"minis-toolchain"];
     return root;
 }
 
@@ -25,10 +25,8 @@ NBToolchainProbe NBToolchainCheck(NSString *root) {
     r.clang = NBExecutableFile([root stringByAppendingPathComponent:@"bin/clang"]);
     r.ld    = NBExecutableFile([root stringByAppendingPathComponent:@"bin/ld"]);
     r.ldid  = NBExecutableFile([root stringByAppendingPathComponent:@"bin/ldid"]);
-    // SDK ships as an archive that is unpacked into a writable workspace at
-    // build time (a directory of frameworks inside the bundle broke TrollStore's
-    // recursive ldid -s during install — probed as install error 175).
-    NSString *archive = [root stringByAppendingPathComponent:@"SDK.resources"];
+    // Provision retains the SDK directory under the writable toolchain root.
+    NSString *archive = [root stringByAppendingPathComponent:@"iPhoneOS16.5.sdk/SDKSettings.plist"];
     r.sdk = archive.length > 0 && access(archive.fileSystemRepresentation, R_OK) == 0;
     r.resourceDir = (access([[root stringByAppendingPathComponent:@"lib/clang/23/include"]
                               fileSystemRepresentation], R_OK) == 0);
@@ -45,10 +43,10 @@ NSDictionary *NBToolchainDescribe(NSString *root) {
         @"clang": @(p.clang),
         @"ld": @(p.ld),
         @"ldid": @(p.ldid),
-        @"sdk_archive": @(p.sdk),
+        @"sdk": @(p.sdk),
         @"resource_dir": @(p.resourceDir),
         @"ready": @(p.clang && p.ld && p.ldid && p.sdk && p.resourceDir),
-        @"sdk_mode": @"archive-unpacked-at-build-time",
+        @"sdk_mode": @"provisioned-sdk-directory",
         @"note": @"ready only means every expected path exists and is executable; "
                  @"run the probe tests on this installation before claiming a build."
     };

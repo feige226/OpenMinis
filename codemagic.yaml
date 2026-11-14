@@ -153,6 +153,19 @@ workflows:
               echo "    UNSIGNED $(basename "$M")" >&2; fail=1; fi
           done
           [ "$fail" -eq 0 ] || { echo "!! unsigned binaries in bundle" >&2; exit 1; }
+          # Bundle the on-device toolchain archives into the app so
+          # provision (NBExtractArchive) can deploy them at runtime.
+          # Mach-O files inside the archives are already adhoc signed.
+          # Provision reads <Bundle>/ToolchainResources/*.tgz.
+          echo "==> stage toolchain archives into bundle"
+          mkdir -p Payload/Minis.app/ToolchainResources
+          if ! cp src/ios/ToolchainResources/*.tgz Payload/Minis.app/ToolchainResources/; then
+            echo "!! ToolchainResources not found; toolchain would be missing at runtime" >&2
+            exit 1
+          fi
+          ls -lh Payload/Minis.app/ToolchainResources
+          [ -f Payload/Minis.app/ToolchainResources/MinToolchain.tgz ] && [ -f Payload/Minis.app/ToolchainResources/MinSDK.tgz ] || {
+            echo "!! toolchain archives missing"; exit 1; }
           zip -qry Minis-unsigned.ipa Payload
           ls -lh Minis-unsigned.ipa
     artifacts:
