@@ -117,6 +117,14 @@ workflows:
             8eda57419100a136ddba544410eb7dd7329e03e5abbcbbc060bcfdd1c0bdd835 "$OUT/MinToolchain.tgz"
           ls -lh "$OUT"
 
+      - name: Verify provision extraction (real archives and Foundation)
+        script: |
+          set -euo pipefail
+          python3 tests/provision_extract.py src/ios/ToolchainResources/MinToolchain.tgz src/ios/ToolchainResources/MinSDK.tgz
+          clang -fobjc-arc -framework Foundation -larchive -Isrc/ios/NativeOffloads tests/provision_foundation.m src/ios/NativeOffloads/NativeBuildProvision.m -o /tmp/provision-foundation
+          /tmp/provision-foundation src/ios/ToolchainResources/MinToolchain.tgz Toolchain
+          /tmp/provision-foundation src/ios/ToolchainResources/MinSDK.tgz iPhoneOS16.5.sdk
+
       - name: Package IPA
         script: |
           set -euo pipefail
