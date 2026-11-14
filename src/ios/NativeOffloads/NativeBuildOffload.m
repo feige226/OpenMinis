@@ -2,6 +2,7 @@
 #import "NativeBuildOffload.h"
 #import "NativeBuildProcess.h"
 #import "NativeBuildToolchain.h"
+#import "NativeBuildProvision.h"
 #import "NativeOffloadUtils.h"
 #include "kernel/native_offload.h"
 #include <unistd.h>
@@ -120,7 +121,7 @@ static int nb_handle(int argc,char **argv,int stdin_fd,struct NBOutput *fds) {
     (void)stdin_fd;
     @autoreleasepool {
         if(argc==1 || noff_has_flag(argc,argv,"--help")) {
-            NSString *help=@"minis-native-build doctor\nminis-native-build inspect --artifact /guest/path/MachO\nminis-native-build doctor [--probe]\nminis-native-build run --request /guest/path/request.json\nRequest: executable (absolute HOST path), arguments (array), cwd (optional HOST path), timeout_ms (1..3600000). cancel_file (optional absolute GUEST path; create it to cancel, polled only). stdout/stderr stream raw with at most 100ms aggregate backpressure wait per stream; excess is dropped. Final status JSON on stderr is best effort; host log records delivery failures. stdin is /dev/null. No compiler is installed by this command; inspect only reads a Mach-O header (never executes it) and returns nonzero when the artifact is invalid.\n"; nb_output(NBP_STDERR,help.UTF8String,strlen(help.UTF8String),fds); return 0;
+            NSString *help=@"minis-native-build provision\nminis-native-build doctor\nminis-native-build inspect --artifact /guest/path/MachO\nminis-native-build doctor [--probe]\nminis-native-build run --request /guest/path/request.json\nRequest: executable (absolute HOST path), arguments (array), cwd (optional HOST path), timeout_ms (1..3600000). cancel_file (optional absolute GUEST path; create it to cancel, polled only). stdout/stderr stream raw with at most 100ms aggregate backpressure wait per stream; excess is dropped. Final status JSON on stderr is best effort; host log records delivery failures. stdin is /dev/null. No compiler is installed by this command; inspect only reads a Mach-O header (never executes it) and returns nonzero when the artifact is invalid.\n"; nb_output(NBP_STDERR,help.UTF8String,strlen(help.UTF8String),fds); return 0;
         }
         if(argc==4 && strcmp(argv[1],"inspect")==0 && strcmp(argv[2],"--artifact")==0) {
             /* Read-only artifact gate: exit status of a previous step is not
@@ -132,6 +133,40 @@ static int nb_handle(int argc,char **argv,int stdin_fd,struct NBOutput *fds) {
             NSDictionary *info=NBMachOInspect(host);
             nb_json(fds,NBP_STDOUT,info);
             return [info[@"valid"] boolValue] ? 0 : 1;
+        }
+        /* [T-native-build] Expand the bundled toolchain into a writable dir.
+         * The app bundle is read-only and a Toolchain/ directory inside it broke
+         * TrollStore's recursive signing, so the archives ship flat and are
+         * unpacked here, once, with verification. */
+        if(argc==2 && strcmp(argv[1],"provision")==0) {
+            NSString *bundle=NSBundle.mainBundle.bundlePath;
+            NSString *resDir=[bundle stringByAppendingPathComponent:@"ToolchainResources"];
+            NSString *dest=[NSTemporaryDirectory() stringByAppendingPathComponent:@"minis-toolchain"];
+            NSFileManager *fm=[NSFileManager defaultManager];
+
+            NSDictionary *tools=NBExtractArchive([resDir stringByAppendingPathComponent:@"MinToolchain.tgz"],dest,@"Toolchain");
+            NSDictionary *sdk=NBExtractArchive([resDir stringByAppendingPathComponent:@"MinSDK.tgz"],dest,@"iPhoneOS16.5.sdk");
+
+            /* Trust nothing that was not checked: stat the things a build needs. */
+            NSString *clang=[dest stringByAppendingPathComponent:@"bin/clang"];
+            NSString *ld=[dest stringByAppendingPathComponent:@"bin/ld"];
+            NSString *ldid=[dest stringByAppendingPathComponent:@"bin/ldid"];
+            NSString *sdkDir=[dest stringByAppendingPathComponent:@"iPhoneOS16.5.sdk"];
+            NSString *resDirClang=[dest stringByAppendingPathComponent:@"lib/clang/23"];
+            BOOL clangOK=[fm isExecutableFileAtPath:clang];
+            BOOL ldOK=[fm isExecutableFileAtPath:ld];
+            BOOL ldidOK=[fm isExecutableFileAtPath:ldid];
+            BOOL sdkOK=[fm fileExistsAtPath:[sdkDir stringByAppendingPathComponent:@"SDKSettings.plist"]];
+            BOOL resOK=[fm fileExistsAtPath:[resDirClang stringByAppendingPathComponent:@"include/stddef.h"]];
+
+            nb_json(fds,NBP_STDOUT,@{@"provision":@YES,
+                @"dest":dest,
+                @"toolchain_archive":tools,@"sdk_archive":sdk,
+                @"clang":@(clangOK),@"ld":@(ldOK),@"ldid":@(ldidOK),
+                @"sdk":@(sdkOK),@"resource_dir":@(resOK),
+                @"ready":@(clangOK&&ldOK&&ldidOK&&sdkOK&&resOK),
+                @"note":@"files land under the app's tmp dir; pass these paths as HOST paths in run requests. Re-run is idempotent."});
+            return (clangOK&&ldOK&&ldidOK&&sdkOK&&resOK)?0:1;
         }
         if(argc==2 && strcmp(argv[1],"doctor")==0) {
             /* Two separate answers, deliberately not merged:
