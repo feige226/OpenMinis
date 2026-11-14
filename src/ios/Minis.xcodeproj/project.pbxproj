@@ -4119,6 +4119,7 @@
 				LIBRARY_SEARCH_PATHS = "$(ISH_LIBS_DIR)";
 				MARKETING_VERSION = 1.15;
 				OTHER_LDFLAGS = (
+					"-larchive",
 					"-lish_emu",
 					"-lish",
 					"-lfakefs",
@@ -4178,6 +4179,7 @@
 				LIBRARY_SEARCH_PATHS = "$(ISH_LIBS_DIR)";
 				MARKETING_VERSION = 1.15;
 				OTHER_LDFLAGS = (
+					"-larchive",
 					"-lish_emu",
 					"-lish",
 					"-lfakefs",
