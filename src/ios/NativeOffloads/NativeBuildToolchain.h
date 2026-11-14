@@ -31,6 +31,8 @@ NBToolchainProbe NBToolchainCheck(NSString *root);
 
 /* Human/JSON-ready description. Never runs anything. */
 NSDictionary *NBToolchainDescribe(NSString *root);
+/* Independent host lstat/stat/access observations; never gates a launch. */
+NSDictionary *NBPathDiagnostics(NSString *path);
 
 /* [T-native-build] Artifact inspection: parse a Mach-O far enough to answer
  * "did the tool actually produce the right thing?", so no build step is ever

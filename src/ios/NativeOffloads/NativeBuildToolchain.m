@@ -1,6 +1,38 @@
 #import "NativeBuildToolchain.h"
 #include <unistd.h>
 #include <sys/stat.h>
+#include <errno.h>
+#include <string.h>
+
+NSDictionary *NBPathDiagnostics(NSString *path) {
+    /* Keep the JSON contract valid for callers that pass a missing path. */
+    if (!path) path = @"";
+    const char *p = path.fileSystemRepresentation;
+    NSMutableDictionary *d = [@{@"path":path, @"uid":@(getuid()), @"euid":@(geteuid()),
+                               @"gid":@(getgid()), @"egid":@(getegid())} mutableCopy];
+    struct stat st;
+    int rc = lstat(p, &st), saved = rc == 0 ? 0 : errno;
+    d[@"lstat"] = @{@"rc":@(rc), @"errno":@(saved), @"error":@(strerror(saved)),
+        @"mode":rc == 0 ? [NSString stringWithFormat:@"%06o", (unsigned)st.st_mode] : (id)[NSNull null]};
+    rc = stat(p, &st); saved = rc == 0 ? 0 : errno;
+    NSMutableDictionary *s = [@{@"rc":@(rc), @"errno":@(saved), @"error":@(strerror(saved))} mutableCopy];
+    if (rc == 0) {
+        s[@"mode"] = [NSString stringWithFormat:@"%06o", (unsigned)st.st_mode];
+        s[@"uid"] = @(st.st_uid); s[@"gid"] = @(st.st_gid); s[@"size"] = @(st.st_size);
+        s[@"regular"] = @(S_ISREG(st.st_mode));
+    }
+    d[@"stat"] = s;
+    const int modes[] = {F_OK, R_OK, X_OK};
+    NSArray *names = @[@"F_OK", @"R_OK", @"X_OK"];
+    NSMutableDictionary *a = [NSMutableDictionary dictionary];
+    for (NSUInteger i=0; i<3; i++) {
+        rc=access(p,modes[i]); saved=rc == 0 ? 0 : errno;
+        a[names[i]] = @{@"rc":@(rc), @"errno":@(saved), @"error":@(strerror(saved))};
+    }
+    d[@"access"] = a;
+    d[@"foundation_executable"] = @([[NSFileManager defaultManager] isExecutableFileAtPath:path]);
+    return d;
+}
 
 #include "NativeBuildMachO.inc"
 
@@ -39,6 +71,9 @@ NSDictionary *NBToolchainDescribe(NSString *root) {
     BOOL present = p.clang || p.ld || p.ldid || p.sdk || p.resourceDir;
     return @{
         @"root": root ?: @"",
+        @"paths": @{@"clang":NBPathDiagnostics([root stringByAppendingPathComponent:@"bin/clang"]),
+                    @"ld":NBPathDiagnostics([root stringByAppendingPathComponent:@"bin/ld"]),
+                    @"ldid":NBPathDiagnostics([root stringByAppendingPathComponent:@"bin/ldid"])},
         @"present": @(present),
         @"clang": @(p.clang),
         @"ld": @(p.ld),

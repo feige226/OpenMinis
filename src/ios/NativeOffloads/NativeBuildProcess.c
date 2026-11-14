@@ -100,7 +100,8 @@ static int reap(pid_t pid, int *status, int flags)
 
 NBPResult NBPRun(const NBPOptions *options)
 {
-    NBPResult result = { NBP_SPAWN_ERROR, 0, -1, 0, -1 };
+    NBPResult result = {.status=NBP_SPAWN_ERROR, .exit_code=-1, .pid=-1,
+                        .error_stage="validation"};
     int pipes[2][2] = { {-1, -1}, {-1, -1} };
     posix_spawn_file_actions_t actions;
     posix_spawnattr_t attributes;
@@ -111,7 +112,7 @@ NBPResult NBPRun(const NBPOptions *options)
         result.error_number = EINVAL;
         return result;
     }
-#define CHECK(call) do { error = (call); if (error) goto setup_done; } while (0)
+#define CHECK(call) do { result.error_stage = #call; error = (call); if (error) goto setup_done; } while (0)
     CHECK(make_pipe(pipes[0]));
     CHECK(make_pipe(pipes[1]));
     CHECK(posix_spawn_file_actions_init(&actions));
@@ -140,9 +141,12 @@ NBPResult NBPRun(const NBPOptions *options)
     CHECK(posix_spawnattr_setpgroup(&attributes, 0));
     CHECK(posix_spawnattr_setflags(&attributes, POSIX_SPAWN_SETPGROUP |
                                   POSIX_SPAWN_SETSIGMASK | POSIX_SPAWN_SETSIGDEF));
-    CHECK(posix_spawn(&result.pid, options->executable, &actions, &attributes,
-                     (char *const *)options->argv,
-                     options->envp ? (char *const *)options->envp : environ));
+    result.spawn_attempted = true;
+    result.error_stage = "posix_spawn";
+    error = posix_spawn(&result.pid, options->executable, &actions, &attributes,
+                       (char *const *)options->argv,
+                       options->envp ? (char *const *)options->envp : environ);
+    if (!error) result.error_stage = NULL;
 setup_done:
     if (attributes_ready) posix_spawnattr_destroy(&attributes);
     if (actions_ready) posix_spawn_file_actions_destroy(&actions);
@@ -233,6 +237,7 @@ setup_done:
     }
     goto finish;
 runtime_failure:
+    result.error_stage = "runtime";
     if (!stopped) result.status = NBP_SYSTEM_ERROR;
     result.error_number = error;
     signal_group(result.pid, SIGKILL, !reaped);
@@ -241,6 +246,7 @@ finish:
     if (!reaped) {
         int state = reap(result.pid, &child_status, 0);
         if (state < 0) {
+            result.error_stage = "waitpid";
             if (!stopped) result.status = NBP_SYSTEM_ERROR;
             result.error_number = -state;
         } else reaped = true;

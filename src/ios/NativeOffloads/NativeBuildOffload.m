@@ -161,7 +161,7 @@ static int nb_handle(int argc,char **argv,int stdin_fd,struct NBOutput *fds) {
             BOOL resOK=[fm fileExistsAtPath:[resDirClang stringByAppendingPathComponent:@"include/stddef.h"]];
 
             nb_json(fds,NBP_STDOUT,@{@"provision":@YES,
-                @"dest":dest,
+                @"dest":dest,@"path_diagnostics":NBToolchainDescribe(dest)[@"paths"],
                 @"toolchain_archive":tools,@"sdk_archive":sdk,
                 @"clang":@(clangOK),@"ld":@(ldOK),@"ldid":@(ldidOK),
                 @"sdk":@(sdkOK),@"resource_dir":@(resOK),
@@ -184,10 +184,14 @@ static int nb_handle(int argc,char **argv,int stdin_fd,struct NBOutput *fds) {
             NSString *root=NBToolchainRoot();
             for(NSString *name in tools){
                 NSString *exe=[root stringByAppendingPathComponent:tools[name]];
-                if(access(exe.fileSystemRepresentation,X_OK)!=0){live[name]=@{@"ran":@NO,@"reason":@"missing"};continue;}
+                NSDictionary *pathInfo=NBPathDiagnostics(exe); // observe, never gate spawn
                 const char *av[]={exe.fileSystemRepresentation,"--version",NULL};
                 NBPResult r=NBPRun(&(NBPOptions){.executable=exe.fileSystemRepresentation,.argv=av,.timeout_ms=15000,.terminate_grace_ms=250,.output=NULL});
-                live[name]=@{@"ran":@(r.status==NBP_EXITED),@"exit":@(r.exit_code),@"status":@((int)r.status),@"errno":@(r.error_number)};
+                live[name]=@{@"ran":@(r.status==NBP_EXITED),@"spawn_attempted":@(r.spawn_attempted),
+                    @"spawn_succeeded":@(r.pid>0),@"pid":@(r.pid),@"signal":@(r.termination_signal),
+                    @"error_stage":r.error_stage ? @(r.error_stage) : @"",
+                    @"error":@(strerror(r.error_number)),@"path_diagnostics":pathInfo,
+                    @"exit":@(r.exit_code),@"status":@((int)r.status),@"errno":@(r.error_number)};
             }
             BOOL all=YES; for(NSString *k in live) all = all && [live[k][@"ran"] boolValue];
             nb_json(fds,NBP_STDOUT,@{@"backend":@"ios-native",@"probe":live,@"all_tools_ran":@(all),@"toolchain":NBToolchainDescribe(nil),@"note":@"--version proves launch only; compile/link/sign still need the source→IPA smoke run."}); return 0;
@@ -257,7 +261,11 @@ static int nb_handle(int argc,char **argv,int stdin_fd,struct NBOutput *fds) {
             if (fds->channels[i].error==ECANCELED || fds->channels[i].error==ETIMEDOUT)
                 fds->channels[i].disabled=false;
         struct NBChannel out=fds->channels[0], err=fds->channels[1];
-        NSDictionary *report=@{@"native_build_result":@YES,@"status":@(result.status),@"errno":@(result.error_number),@"exit_code":@(result.exit_code),@"signal":@(result.termination_signal),
+        NSDictionary *report=@{@"native_build_result":@YES,
+            @"path_diagnostics":NBPathDiagnostics(exe),@"spawn_attempted":@(result.spawn_attempted),
+            @"spawn_succeeded":@(result.pid>0),@"pid":@(result.pid),
+            @"error_stage":result.error_stage ? @(result.error_stage) : @"",
+            @"error":@(strerror(result.error_number)),@"status":@(result.status),@"errno":@(result.error_number),@"exit_code":@(result.exit_code),@"signal":@(result.termination_signal),
             @"output_truncated":@(out.dropped>0 || err.dropped>0),
             @"stdout_written":@(out.written),@"stdout_dropped":@(out.dropped),@"stdout_errno":@(out.error),
             @"stderr_written":@(err.written),@"stderr_dropped":@(err.dropped),@"stderr_errno":@(err.error)};

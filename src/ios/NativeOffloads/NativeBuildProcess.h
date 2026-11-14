@@ -43,6 +43,8 @@ typedef struct {
     int exit_code;                /* -1 unless child exited normally */
     int termination_signal;       /* 0 unless child died from a signal */
     pid_t pid;                    /* -1 unless spawn succeeded */
+    const char *error_stage;       /* static string; NULL on success */
+    bool spawn_attempted;          /* reached the actual posix_spawn call */
 } NBPResult;
 
 /* Synchronous, reentrant, no global signal handlers or cwd changes.
