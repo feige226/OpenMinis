@@ -165,19 +165,38 @@ workflows:
               echo "    UNSIGNED $(basename "$M")" >&2; fail=1; fi
           done
           [ "$fail" -eq 0 ] || { echo "!! unsigned binaries in bundle" >&2; exit 1; }
-          # Bundle the on-device toolchain archives into the app so
-          # provision (NBExtractArchive) can deploy them at runtime.
-          # Mach-O files inside the archives are already adhoc signed.
-          # Provision reads <Bundle>/ToolchainResources/*.tgz.
-          echo "==> stage toolchain archives into bundle"
-          mkdir -p Payload/Minis.app/ToolchainResources
-          if ! cp src/ios/ToolchainResources/*.tgz Payload/Minis.app/ToolchainResources/; then
-            echo "!! ToolchainResources not found; toolchain would be missing at runtime" >&2
-            exit 1
-          fi
-          ls -lh Payload/Minis.app/ToolchainResources
-          [ -f Payload/Minis.app/ToolchainResources/MinToolchain.tgz ] && [ -f Payload/Minis.app/ToolchainResources/MinSDK.tgz ] || {
-            echo "!! toolchain archives missing"; exit 1; }
+          # Bundle the on-device toolchain into the app.
+          #
+          # NEVER ship the toolchain as a runtime-unpacked tgz under the data
+          # container (tmp or Library/Caches): on iOS 16.4.1 the sandbox returns
+          # EPERM for access(X_OK) and posix_spawn against any cloned Mach-O that
+          # lives outside the app bundle's code-signature page, no matter what
+          # entitlements are set. Probe v9 ran clang/ld/ldid fine ONLY because
+          # they shipped inside the signed .app/Toolchain.
+          #
+          # The executable tools therefore go into the bundle as a real
+          # `Toolchain/` directory (Mach-O are alreading adhoc-signed, so
+          # TrollStore's recursive `ldid -S` passes them). The SDK is NOT
+          # executable and stays as an archive under ToolchainResources/, unpacked
+          # to the writable cache dir at runtime.
+          echo "==> stage toolchain into bundle"
+          mkdir -p Payload/Minis.app/Toolchain Payload/Minis.app/ToolchainResources
+          tar xzf src/ios/ToolchainResources/MinToolchain.tgz -C Payload/Minis.app/   # → ./Toolchain
+          [ -x Payload/Minis.app/Toolchain/bin/clang ] || { echo "!! Toolchain/bin/clang not executable"; exit 1; }
+          [ -f Payload/Minis.app/Toolchain/bin/ld ] && [ -f Payload/Minis.app/Toolchain/bin/ldid ] || { echo "!! missing ld/ldid"; exit 1; }
+          cp src/ios/ToolchainResources/MinSDK.tgz Payload/Minis.app/ToolchainResources/
+          ls -lh Payload/Minis.app/Toolchain/bin
+          [ -f Payload/Minis.app/ToolchainResources/MinSDK.tgz ] || { echo "!! SDK archive missing"; exit 1; }
+          # The staged Toolchain/ directory adds unsigned? No: every Mach-O inside
+          # MinToolchain.tgz is adhoc-signed (see stage_toolchain.py), but make
+          # sure the recursive-sign pass above covered them too.
+          for M in Payload/Minis.app/Toolchain/bin/* Payload/Minis.app/Toolchain/lib/*.dylib; do
+            [ -f "$M" ] || continue
+            if file "$M" | grep -q 'Mach-O'; then
+              ldid -S"$ENT" "$M" || { echo "!! sign failed $M"; exit 1; }
+            fi
+          done
+          echo "==> toolchain staged and signed"
           zip -qry Minis-unsigned.ipa Payload
           ls -lh Minis-unsigned.ipa
     artifacts:

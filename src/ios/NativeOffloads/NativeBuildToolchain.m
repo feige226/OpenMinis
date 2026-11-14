@@ -60,10 +60,16 @@ NSString *NBSearchPathForSharedCache(NSString *name) {
 }
 
 NSString *NBToolchainRoot(void) {
-    // Same writable location used by the provision command.
-    NSString *root = [NBSearchPathForSharedCache(@"minis-toolchain") copy];
-    if (root.length == 0) root = [NSTemporaryDirectory() stringByAppendingPathComponent:@"minis-toolchain"];
-    return root;
+    // The executable tools live INSIDE the signed bundle (probe v9 layout).
+    // iOS refuses to execute any Mach-O outside the app bundle's code-signature
+    // page (access X_OK and posix_spawn both EPERM), so never point this at a
+    // data-container clone. Only the SDK (unexecutable) is staged to cache.
+    NSString *bundle = NSBundle.mainBundle.bundlePath;
+    NSString *tool = bundle.length ? [bundle stringByAppendingPathComponent:@"Toolchain"] : nil;
+    if (tool.length && [[NSFileManager defaultManager] fileExistsAtPath:tool]) return tool;
+    // Fallback for a host-side / debug checkout where MinToolchain.tgz was
+    // unpacked under cache, not bundled.
+    return [NBSearchPathForSharedCache(@"minis-toolchain") copy];
 }
 
 NBToolchainProbe NBToolchainCheck(NSString *root) {

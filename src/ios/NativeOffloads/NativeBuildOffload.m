@@ -139,29 +139,31 @@ static int nb_handle(int argc,char **argv,int stdin_fd,struct NBOutput *fds) {
          * TrollStore's recursive signing, so the archives ship flat and are
          * unpacked here, once, with verification. */
         if(argc==2 && strcmp(argv[1],"provision")==0) {
+            /* [T-native-build] Tool EXECUTION must come from the signed bundle: on
+             * iOS 16.4.1 AMFI/sandbox refuses to execute any Mach-O that sits
+             * outside the app bundle's code-signature page (access X_OK and
+             * posix_spawn both return EPERM even with no-sandbox +
+             * AppDataContainers, whether staged under tmp or Library/Caches;
+             * probe v9 ran the same binaries fine because they shipped inside
+             * .app/Toolchain). So the tools are used IN PLACE from the bundle.
+             * Only the SDK (not executable) is unpacked to a writable dir. */
             NSString *bundle=NSBundle.mainBundle.bundlePath;
+            NSString *toolRoot=[bundle stringByAppendingPathComponent:@"Toolchain"];
             NSString *resDir=[bundle stringByAppendingPathComponent:@"ToolchainResources"];
-            /* [T-native-build] Do NOT unpack into NSTemporaryDirectory().
-             * On iOS the app's tmp/ is commonly mounted noexec-ish for spawned
-             * Mach-O: access(X_OK) returns EPERM and posix_spawn fails with
-             * EPERM even with no-sandbox + AppDataContainers. Probe v9 ran its
-             * tools from inside the (signed) bundle and worked. Library/Caches
-             * is a writable, executable location inside the data container. */
-            NSString *dest=[NBSearchPathForSharedCache(@"minis-toolchain") copy];
-            if(!dest) dest=[NSTemporaryDirectory() stringByAppendingPathComponent:@"minis-toolchain"];
+            NSString *cache=[NBSearchPathForSharedCache(@"sdk") copy];
+            if(!cache) cache=[NSTemporaryDirectory() stringByAppendingPathComponent:@"minis-toolchain"];
             NSFileManager *fm=[NSFileManager defaultManager];
 
-            NSDictionary *tools=NBExtractArchive([resDir stringByAppendingPathComponent:@"MinToolchain.tgz"],dest,@"Toolchain");
-            NSDictionary *sdk=NBExtractArchive([resDir stringByAppendingPathComponent:@"MinSDK.tgz"],[dest stringByAppendingPathComponent:@"iPhoneOS16.5.sdk"],@"iPhoneOS16.5.sdk");
+            NSDictionary *sdk=NBExtractArchive([resDir stringByAppendingPathComponent:@"MinSDK.tgz"],
+                                               [cache stringByAppendingPathComponent:@"iPhoneOS16.5.sdk"],@"iPhoneOS16.5.sdk");
 
             /* Trust nothing that was not checked: stat the things a build needs. */
-            NSString *clang=[dest stringByAppendingPathComponent:@"bin/clang"];
-            NSString *ld=[dest stringByAppendingPathComponent:@"bin/ld"];
-            NSString *ldid=[dest stringByAppendingPathComponent:@"bin/ldid"];
-            NSString *sdkDir=[dest stringByAppendingPathComponent:@"iPhoneOS16.5.sdk"];
-            NSString *resDirClang=[dest stringByAppendingPathComponent:@"lib/clang/23"];
-            BOOL archivesOK=[tools[@"ok"] boolValue] && [sdk[@"ok"] boolValue];
-            BOOL clangOK=archivesOK && [fm isExecutableFileAtPath:clang];
+            NSString *clang=[toolRoot stringByAppendingPathComponent:@"bin/clang"];
+            NSString *ld=[toolRoot stringByAppendingPathComponent:@"bin/ld"];
+            NSString *ldid=[toolRoot stringByAppendingPathComponent:@"bin/ldid"];
+            NSString *sdkDir=[cache stringByAppendingPathComponent:@"iPhoneOS16.5.sdk"];
+            NSString *resDirClang=[toolRoot stringByAppendingPathComponent:@"lib/clang/23"];
+            BOOL clangOK=[fm isExecutableFileAtPath:clang];
             BOOL ldOK=[fm isExecutableFileAtPath:ld];
             BOOL ldidOK=[fm isExecutableFileAtPath:ldid];
             BOOL sdkOK=[fm fileExistsAtPath:[sdkDir stringByAppendingPathComponent:@"SDKSettings.plist"]];
@@ -172,7 +174,7 @@ static int nb_handle(int argc,char **argv,int stdin_fd,struct NBOutput *fds) {
              * provision answers it instead of costing a separate probe round. */
             NSMutableDictionary *execProbe=[NSMutableDictionary dictionary];
             for(NSString *label in @[@"clang",@"ld",@"ldid"]){
-                NSString *exe=[dest stringByAppendingPathComponent:[@"bin/" stringByAppendingString:label]];
+                NSString *exe=[toolRoot stringByAppendingPathComponent:[@"bin/" stringByAppendingString:label]];
                 NSDictionary *d=NBPathDiagnostics(exe);
                 execProbe[label]=@{@"X_OK":d[@"access"][@"X_OK"],@"mode":d[@"stat"][@"mode"] ?: (id)[NSNull null]};
             }
@@ -186,13 +188,13 @@ static int nb_handle(int argc,char **argv,int stdin_fd,struct NBOutput *fds) {
             }
 
             nb_json(fds,NBP_STDOUT,@{@"provision":@YES,
-                @"dest":dest,@"path_diagnostics":NBToolchainDescribe(dest)[@"paths"],
-                @"toolchain_archive":tools,@"sdk_archive":sdk,
+                @"tool_root":toolRoot,@"sdk_dir":sdkDir,@"path_diagnostics":NBToolchainDescribe(toolRoot)[@"paths"],
+                @"sdk_archive":sdk,
                 @"clang":@(clangOK),@"ld":@(ldOK),@"ldid":@(ldidOK),
                 @"sdk":@(sdkOK),@"resource_dir":@(resOK),
                 @"exec_probe":execProbe,
                 @"ready":@(clangOK&&ldOK&&ldidOK&&sdkOK&&resOK),
-                @"note":@"files land under Library/Caches/native-toolchain, never tmp (iOS rejects exec there); pass these paths as HOST paths in run requests. Re-run is idempotent."});
+                @"note":@"tools run in place from the signed bundle (iOS rejects exec of any Mach-O outside the bundle signature page); only the SDK is unpacked, to Library/Caches. Re-run is idempotent."});
             return (clangOK&&ldOK&&ldidOK&&sdkOK&&resOK)?0:1;
         }
         if(argc==2 && strcmp(argv[1],"doctor")==0) {
