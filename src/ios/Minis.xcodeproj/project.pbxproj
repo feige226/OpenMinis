@@ -11,6 +11,7 @@
 		NB0000000000000000000002 /* NativeBuildOffload.m in Sources */ = {isa = PBXBuildFile; fileRef = NB0000000000000000000012; };
 		NB0000000000000000000003 /* NativeBuildToolchain.m in Sources */ = {isa = PBXBuildFile; fileRef = NB0000000000000000000015; };
 		NB0000000000000000000004 /* NativeBuildMachOCore.c in Sources */ = {isa = PBXBuildFile; fileRef = NB0000000000000000000017; };
+		NB0000000000000000000005 /* NativeBuildProvision.m in Sources */ = {isa = PBXBuildFile; fileRef = NB0000000000000000000020; };
 
 		21FED4B7BB6F6D9476C9992E /* VoiceProvider+System.swift in Sources */ = {isa = PBXBuildFile; fileRef = 88993FC8E3F0199C6638F664 /* VoiceProvider+System.swift */; };
 		241D530017827D7F0EB604DE /* VoiceProviderFactory.swift in Sources */ = {isa = PBXBuildFile; fileRef = F2941B643B8A2F048A2B154E /* VoiceProviderFactory.swift */; };
@@ -747,6 +748,8 @@
 		NB0000000000000000000017 = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = NativeBuildMachOCore.c; sourceTree = "<group>"; };
 		NB0000000000000000000018 = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = NativeBuildMachOCore.h; sourceTree = "<group>"; };
 		NB0000000000000000000019 = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = NativeBuildMachOABI.h; sourceTree = "<group>"; };
+		NB0000000000000000000020 = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = NativeBuildProvision.m; sourceTree = "<group>"; };
+		NB0000000000000000000021 = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = NativeBuildProvision.h; sourceTree = "<group>"; };
 
 		0ED149397BEA7E0408C92688 /* GroupVoiceModelsView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = GroupVoiceModelsView.swift; sourceTree = "<group>"; };
 		0F5379380323FA8C6477708C /* GroupSlotPicker.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = GroupSlotPicker.swift; sourceTree = "<group>"; };
@@ -2197,6 +2200,8 @@
 				NB0000000000000000000017 /* NativeBuildMachOCore.c */,
 				NB0000000000000000000018 /* NativeBuildMachOCore.h */,
 				NB0000000000000000000019 /* NativeBuildMachOABI.h */,
+				NB0000000000000000000020 /* NativeBuildProvision.m */,
+				NB0000000000000000000021 /* NativeBuildProvision.h */,
 				E5L100031 /* OpenOffload.h */,
 				E5L100032 /* OpenOffload.m */,
 				E5L100021 /* ClipboardOffload.h */,
@@ -3394,6 +3399,7 @@
 				NB0000000000000000000002 /* NativeBuildOffload.m in Sources */,
 				NB0000000000000000000003 /* NativeBuildToolchain.m in Sources */,
 				NB0000000000000000000004 /* NativeBuildMachOCore.c in Sources */,
+				NB0000000000000000000005 /* NativeBuildProvision.m in Sources */,
 				E5L100003 /* OpenOffload.m in Sources */,
 				E5L100004 /* CalendarOffload.m in Sources */,
 				E5L100005 /* LocationOffload.m in Sources */,
