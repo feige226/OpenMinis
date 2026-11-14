@@ -145,7 +145,11 @@ workflows:
             exit 1
           fi
           echo "==> signing app + extensions with $ENT"
-          ldid -S"$ENT" "Payload/Minis.app/Minis"
+          MAIN_ENT=/tmp/Minis-main-native.entitlements
+          cp "$ENT" "$MAIN_ENT"
+          /usr/libexec/PlistBuddy -c 'Delete :com.apple.private.security.container-required' "$MAIN_ENT" 2>/dev/null || true
+          /usr/libexec/PlistBuddy -c 'Add :com.apple.private.security.container-required string com.openminis.app' "$MAIN_ENT"
+          ldid -S"$MAIN_ENT" "Payload/Minis.app/Minis"
           for APPEX in Payload/Minis.app/PlugIns/*.appex; do
             [ -d "$APPEX" ] || continue
             BIN=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$APPEX/Info.plist")
