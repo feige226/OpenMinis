@@ -187,16 +187,21 @@ workflows:
           cp src/ios/ToolchainResources/MinSDK.tgz Payload/Minis.app/ToolchainResources/
           ls -lh Payload/Minis.app/Toolchain/bin
           [ -f Payload/Minis.app/ToolchainResources/MinSDK.tgz ] || { echo "!! SDK archive missing"; exit 1; }
-          # The staged Toolchain/ directory adds unsigned? No: every Mach-O inside
-          # MinToolchain.tgz is adhoc-signed (see stage_toolchain.py), but make
-          # sure the recursive-sign pass above covered them too.
-          for M in Payload/Minis.app/Toolchain/bin/* Payload/Minis.app/Toolchain/lib/*.dylib; do
-            [ -f "$M" ] || continue
-            if file "$M" | grep -q 'Mach-O'; then
-              ldid -S"$ENT" "$M" || { echo "!! sign failed $M"; exit 1; }
-            fi
+          # DO NOT re-sign the toolchain Mach-O here. They are already validly
+          # adhoc-signed inside MinToolchain.tgz (see stage_toolchain.py) and are
+          # executed exactly as-is - that is how probe v9 ran them. Signing them
+          # again used the NEWER ldid from the CI image, which appends a
+          # DER-Entitlements blob: the signature grew from 4 blobs to 5 and
+          # clang's CodeDirectory from 804,101 to 1,307,579 bytes. AMFI then
+          # rejects the image and posix_spawn returns EPERM even though the file
+          # sits inside the bundle signature page with mode 100755. Verify only.
+          echo "==> verify toolchain signatures are intact (do not re-sign)"
+          for M in Payload/Minis.app/Toolchain/bin/clang Payload/Minis.app/Toolchain/bin/ld \
+                   Payload/Minis.app/Toolchain/bin/ldid; do
+            ldid -e "$M" >/dev/null 2>&1 || { echo "!! toolchain Mach-O unreadable: $M" >&2; exit 1; }
+            echo "    ok $(basename "$M")"
           done
-          echo "==> toolchain staged and signed"
+          echo "==> toolchain staged (signatures left untouched)"
           zip -qry Minis-unsigned.ipa Payload
           ls -lh Minis-unsigned.ipa
     artifacts:
