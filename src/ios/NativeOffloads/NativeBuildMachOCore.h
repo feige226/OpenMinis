@@ -30,6 +30,12 @@ typedef struct {
     unsigned min_ios;       /* packed X.Y.Z nibbles; 0 when absent */
     bool has_code_signature;
     unsigned long long signature_size;
+    /* [T-native-build] Code-signature superblock health. A re-signed image from a
+     * newer ldid gains a DER-Entitlements blob (4 -> 5 on our toolchain) and
+     * AMFI then refuses to exec it with EPERM. Both numbers are cheap to read
+     * and make that failure visible on device without a Mac. */
+    unsigned signature_blobs;   /* 0 when absent or unparseable */
+    unsigned long long code_directory_size;
     char error[48];         /* "" when valid */
 } NBMachOInfo;
 

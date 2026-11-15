@@ -23,6 +23,13 @@ static int nb_read(const unsigned char *data, size_t len, size_t off, void *dst,
     return 1;
 }
 
+/* Code-signature superblock fields are big-endian, unlike the Mach-O headers
+ * around them. */
+static unsigned nb_be32(const unsigned char *p)
+{
+    return ((unsigned)p[0] << 24) | ((unsigned)p[1] << 16) | ((unsigned)p[2] << 8) | (unsigned)p[3];
+}
+
 static void nb_filetype(uint32_t t, char *out, size_t cap)
 {
     const char *s = "other";
@@ -115,7 +122,23 @@ void NBMachOParse(const void *data, size_t len, NBMachOInfo *out)
                      * inside the file for the signature to be counted. */
                     out->has_code_signature = sg.datasize > 0 && sg.dataoff <= len &&
                                               sg.datasize <= len - sg.dataoff;
-                    if (out->has_code_signature) out->signature_size = sg.datasize;
+                    if (out->has_code_signature) {
+                        out->signature_size = sg.datasize;
+                        /* Read the superblock when it fits: gives blob count and
+                         * CodeDirectory length, the two numbers that tell a
+                         * pristine adhoc signature from one a newer ldid
+                         * appended DER entitlements to. */
+                        const unsigned char *sup = (const unsigned char *)data + sg.dataoff;
+                        if (sg.datasize >= 12) {
+                            unsigned magic = nb_be32(sup);
+                            unsigned cdlen = nb_be32(sup + 4);
+                            unsigned count = nb_be32(sup + 8);
+                            if (magic == 0xFADE0CC0u && count < 64) {
+                                out->signature_blobs = count;
+                                out->code_directory_size = cdlen;
+                            }
+                        }
+                    }
                 }
                 break;
             }

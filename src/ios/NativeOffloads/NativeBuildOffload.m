@@ -3,6 +3,7 @@
 #import "NativeBuildProcess.h"
 #import "NativeBuildToolchain.h"
 #import "NativeBuildProvision.h"
+#import "NativeBuildMachOCore.h"
 #import "NativeOffloadUtils.h"
 #include "kernel/native_offload.h"
 #include <unistd.h>
@@ -176,7 +177,21 @@ static int nb_handle(int argc,char **argv,int stdin_fd,struct NBOutput *fds) {
             for(NSString *label in @[@"clang",@"ld",@"ldid"]){
                 NSString *exe=[toolRoot stringByAppendingPathComponent:[@"bin/" stringByAppendingString:label]];
                 NSDictionary *d=NBPathDiagnostics(exe);
-                execProbe[label]=@{@"X_OK":d[@"access"][@"X_OK"],@"mode":d[@"stat"][@"mode"] ?: (id)[NSNull null]};
+                NSMutableDictionary *m=[NSMutableDictionary dictionaryWithDictionary:
+                    @{@"X_OK":d[@"access"][@"X_OK"],@"mode":d[@"stat"][@"mode"] ?: (id)[NSNull null]}];
+                /* Signature health: a pristine adhoc image has 4 blobs. A newer
+                 * ldid re-sign appends DER entitlements (5 blobs) and AMFI then
+                 * refuses to exec it with EPERM even inside the bundle. */
+                NSData *blobData=[NSData dataWithContentsOfFile:exe options:NSDataReadingMappedIfSafe error:NULL];
+                if(blobData){
+                    NBMachOInfo info; memset(&info,0,sizeof(info));
+                    NBMachOParse(blobData.bytes,blobData.length,&info);
+                    if(info.valid){
+                        m[@"signature_blobs"]=@(info.signature_blobs);
+                        m[@"code_directory_size"]=@(info.code_directory_size);
+                    }
+                }
+                execProbe[label]=m;
             }
             {
                 const char *av[]={clang.fileSystemRepresentation,"--version",NULL};
