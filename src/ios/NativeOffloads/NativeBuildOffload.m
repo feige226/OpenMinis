@@ -140,21 +140,22 @@ static int nb_handle(int argc,char **argv,int stdin_fd,struct NBOutput *fds) {
          * TrollStore's recursive signing, so the archives ship flat and are
          * unpacked here, once, with verification. */
         if(argc==2 && strcmp(argv[1],"provision")==0) {
-            /* [T-native-build] Tool EXECUTION must come from the signed bundle: on
-             * iOS 16.4.1 AMFI/sandbox refuses to execute any Mach-O that sits
-             * outside the app bundle's code-signature page (access X_OK and
-             * posix_spawn both return EPERM even with no-sandbox +
-             * AppDataContainers, whether staged under tmp or Library/Caches;
-             * probe v9 ran the same binaries fine because they shipped inside
-             * .app/Toolchain). So the tools are used IN PLACE from the bundle.
-             * Only the SDK (not executable) is unpacked to a writable dir. */
+            /* [T-native-build] The toolchain ships as a .tgz and is unpacked here.
+             * Shipping it as a real bundle/Toolchain directory failed on device:
+             * TrollStore re-signs EVERY Mach-O under Minis.app/ on install, which
+             * turned the pristine 4-blob adhoc signature into 6 blobs and made
+             * AMFI refuse posix_spawn with EPERM (mode stayed 100755, F_OK/R_OK
+             * fine). TrollStore cannot see inside an archive, so the payload
+             * keeps its original signature. */
             NSString *bundle=NSBundle.mainBundle.bundlePath;
-            NSString *toolRoot=[bundle stringByAppendingPathComponent:@"Toolchain"];
             NSString *resDir=[bundle stringByAppendingPathComponent:@"ToolchainResources"];
-            NSString *cache=[NBSearchPathForSharedCache(@"sdk") copy];
+            NSString *cache=[NBSearchPathForSharedCache(@"native-toolchain") copy];
             if(!cache) cache=[NSTemporaryDirectory() stringByAppendingPathComponent:@"minis-toolchain"];
             NSFileManager *fm=[NSFileManager defaultManager];
+            NSString *toolRoot=[cache stringByAppendingPathComponent:@"Toolchain"];
 
+            NSDictionary *toolchain=NBExtractArchive([resDir stringByAppendingPathComponent:@"MinToolchain.tgz"],
+                                                     toolRoot,@"Toolchain");
             NSDictionary *sdk=NBExtractArchive([resDir stringByAppendingPathComponent:@"MinSDK.tgz"],
                                                [cache stringByAppendingPathComponent:@"iPhoneOS16.5.sdk"],@"iPhoneOS16.5.sdk");
 
@@ -204,12 +205,12 @@ static int nb_handle(int argc,char **argv,int stdin_fd,struct NBOutput *fds) {
 
             nb_json(fds,NBP_STDOUT,@{@"provision":@YES,
                 @"tool_root":toolRoot,@"sdk_dir":sdkDir,@"path_diagnostics":NBToolchainDescribe(toolRoot)[@"paths"],
-                @"sdk_archive":sdk,
+                @"sdk_archive":sdk,@"toolchain_archive":toolchain,
                 @"clang":@(clangOK),@"ld":@(ldOK),@"ldid":@(ldidOK),
                 @"sdk":@(sdkOK),@"resource_dir":@(resOK),
                 @"exec_probe":execProbe,
                 @"ready":@(clangOK&&ldOK&&ldidOK&&sdkOK&&resOK),
-                @"note":@"tools run in place from the signed bundle (iOS rejects exec of any Mach-O outside the bundle signature page); only the SDK is unpacked, to Library/Caches. Re-run is idempotent."});
+                @"note":@"toolchain + SDK are unpacked from ToolchainResources archives into Library/Caches (never tmp, and never shipped as a bundle dir: TrollStore re-signs every Mach-O in the bundle, inflating the adhoc signature to 6 blobs and making AMFI refuse exec). Pass tool_root paths as HOST paths in run requests. Re-run is idempotent."});
             return (clangOK&&ldOK&&ldidOK&&sdkOK&&resOK)?0:1;
         }
         if(argc==2 && strcmp(argv[1],"doctor")==0) {

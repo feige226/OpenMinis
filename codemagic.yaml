@@ -174,34 +174,40 @@ workflows:
           # entitlements are set. Probe v9 ran clang/ld/ldid fine ONLY because
           # they shipped inside the signed .app/Toolchain.
           #
-          # The executable tools therefore go into the bundle as a real
-          # `Toolchain/` directory (Mach-O are alreading adhoc-signed, so
-          # TrollStore's recursive `ldid -S` passes them). The SDK is NOT
-          # executable and stays as an archive under ToolchainResources/, unpacked
-          # to the writable cache dir at runtime.
-          echo "==> stage toolchain into bundle"
-          mkdir -p Payload/Minis.app/Toolchain Payload/Minis.app/ToolchainResources
-          tar xzf src/ios/ToolchainResources/MinToolchain.tgz -C Payload/Minis.app/   # → ./Toolchain
-          [ -x Payload/Minis.app/Toolchain/bin/clang ] || { echo "!! Toolchain/bin/clang not executable"; exit 1; }
-          [ -f Payload/Minis.app/Toolchain/bin/ld ] && [ -f Payload/Minis.app/Toolchain/bin/ldid ] || { echo "!! missing ld/ldid"; exit 1; }
+          # Bundle the toolchain as an ARCHIVE, never as a real Toolchain/ dir.
+          #
+          # Device evidence (ed7acd8, iOS 16.4.1): the IPA we shipped carried
+          # clang/ld/ldid byte-identical to MinToolchain.tgz with 4 signature
+          # blobs. After TrollStore installed it, provision reported the same
+          # files at +38,771 bytes each with 6 blobs - TrollStore's recursive
+          # ldid had re-signed every Mach-O under Minis.app/, appending blobs and
+          # invalidating the adhoc signature. AMFI then refuses posix_spawn with
+          # EPERM even though the file is inside the bundle and mode 100755.
+          # (The main binary survives this because it is loaded by the kernel,
+          # not by posix_spawn; that is also why the extensions still launch.)
+          #
+          # A .tgz is not a Mach-O, so TrollStore walks past it and the payload
+          # keeps its original 4-blob signature. provision unpacks it at runtime.
+          echo "==> stage toolchain archives into bundle"
+          mkdir -p Payload/Minis.app/ToolchainResources
+          cp src/ios/ToolchainResources/MinToolchain.tgz Payload/Minis.app/ToolchainResources/
           cp src/ios/ToolchainResources/MinSDK.tgz Payload/Minis.app/ToolchainResources/
-          ls -lh Payload/Minis.app/Toolchain/bin
+          ls -lh Payload/Minis.app/ToolchainResources
+          [ -f Payload/Minis.app/ToolchainResources/MinToolchain.tgz ] || { echo "!! toolchain archive missing"; exit 1; }
           [ -f Payload/Minis.app/ToolchainResources/MinSDK.tgz ] || { echo "!! SDK archive missing"; exit 1; }
-          # DO NOT re-sign the toolchain Mach-O here. They are already validly
-          # adhoc-signed inside MinToolchain.tgz (see stage_toolchain.py) and are
-          # executed exactly as-is - that is how probe v9 ran them. Signing them
-          # again used the NEWER ldid from the CI image, which appends a
-          # DER-Entitlements blob: the signature grew from 4 blobs to 5 and
-          # clang's CodeDirectory from 804,101 to 1,307,579 bytes. AMFI then
-          # rejects the image and posix_spawn returns EPERM even though the file
-          # sits inside the bundle signature page with mode 100755. Verify only.
-          echo "==> verify toolchain signatures are intact (do not re-sign)"
-          for M in Payload/Minis.app/Toolchain/bin/clang Payload/Minis.app/Toolchain/bin/ld \
-                   Payload/Minis.app/Toolchain/bin/ldid; do
-            ldid -e "$M" >/dev/null 2>&1 || { echo "!! toolchain Mach-O unreadable: $M" >&2; exit 1; }
-            echo "    ok $(basename "$M")"
+          # No Toolchain/ directory may ship: its Mach-O would be re-signed.
+          [ ! -d Payload/Minis.app/Toolchain ] || { echo "!! stray Toolchain/ dir in bundle would be re-signed" >&2; exit 1; }
+          # Confirm the archive payload is still the pristine 4-blob build.
+          echo "==> verify archived toolchain signatures (expect 4 blobs)"
+          rm -rf /tmp/tkcheck && mkdir -p /tmp/tkcheck
+          tar xzf Payload/Minis.app/ToolchainResources/MinToolchain.tgz -C /tmp/tkcheck
+          for T in clang ld ldid; do
+            M=/tmp/tkcheck/Toolchain/bin/$T
+            [ -f "$M" ] || { echo "!! missing $T in archive" >&2; exit 1; }
+            ldid -e "$M" >/dev/null 2>&1 || { echo "!! unreadable signature: $T" >&2; exit 1; }
+            echo "    ok $T $(stat -f%z "$M") bytes"
           done
-          echo "==> toolchain staged (signatures left untouched)"
+          rm -rf /tmp/tkcheck
           zip -qry Minis-unsigned.ipa Payload
           ls -lh Minis-unsigned.ipa
     artifacts:

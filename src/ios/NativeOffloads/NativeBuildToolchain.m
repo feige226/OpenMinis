@@ -60,16 +60,13 @@ NSString *NBSearchPathForSharedCache(NSString *name) {
 }
 
 NSString *NBToolchainRoot(void) {
-    // The executable tools live INSIDE the signed bundle (probe v9 layout).
-    // iOS refuses to execute any Mach-O outside the app bundle's code-signature
-    // page (access X_OK and posix_spawn both EPERM), so never point this at a
-    // data-container clone. Only the SDK (unexecutable) is staged to cache.
-    NSString *bundle = NSBundle.mainBundle.bundlePath;
-    NSString *tool = bundle.length ? [bundle stringByAppendingPathComponent:@"Toolchain"] : nil;
-    if (tool.length && [[NSFileManager defaultManager] fileExistsAtPath:tool]) return tool;
-    // Fallback for a host-side / debug checkout where MinToolchain.tgz was
-    // unpacked under cache, not bundled.
-    return [NBSearchPathForSharedCache(@"minis-toolchain") copy];
+    // Unpacked from <Bundle>/ToolchainResources/MinToolchain.tgz by provision.
+    // It must NOT be the bundle: TrollStore re-signs every Mach-O under the app
+    // bundle on install, which inflates our pristine 4-blob adhoc signature to
+    // 6 blobs and makes AMFI refuse exec with EPERM.
+    NSString *cache = NBSearchPathForSharedCache(@"native-toolchain");
+    if (cache.length) return [cache stringByAppendingPathComponent:@"Toolchain"];
+    return nil;
 }
 
 NBToolchainProbe NBToolchainCheck(NSString *root) {
