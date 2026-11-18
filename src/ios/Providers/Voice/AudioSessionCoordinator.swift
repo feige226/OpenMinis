@@ -30,9 +30,10 @@ final class AudioSessionCoordinator {
     enum Intent: Int {
         // Higher rawValue = higher priority.
         case backgroundKeepAlive = 0
-        case replyTTS = 1
-        case mediaAttachment = 2
-        case capture = 3
+        case windowPiP = 1
+        case replyTTS = 2
+        case mediaAttachment = 3
+        case capture = 4
     }
 
     private let logger = AppLogger(category: "AudioSession")
@@ -156,7 +157,7 @@ final class AudioSessionCoordinator {
             return (.playback, .default, [.duckOthers])
         case .replyTTS:
             return (.playback, .spokenAudio, [.duckOthers])
-        case .backgroundKeepAlive:
+        case .windowPiP, .backgroundKeepAlive:
             return (.playback, .default, [.mixWithOthers])
         }
     }

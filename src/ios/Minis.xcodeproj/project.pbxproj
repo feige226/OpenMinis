@@ -636,6 +636,7 @@
 		RCL000119 /* BackupHistoryDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = RCL000219 /* BackupHistoryDetailView.swift */; };
 		RCL000120 /* BackupCategoryIcon.swift in Sources */ = {isa = PBXBuildFile; fileRef = RCL000220 /* BackupCategoryIcon.swift */; };
 		RCL000121 /* BackupHUD.swift in Sources */ = {isa = PBXBuildFile; fileRef = RCL000221 /* BackupHUD.swift */; };
+		D269D15225054CEC90515111 /* MinisWindowPiP.m in Sources */ = {isa = PBXBuildFile; fileRef = D269D15225054CEC90515112; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -1481,6 +1482,8 @@
 		RCL000219 /* BackupHistoryDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackupHistoryDetailView.swift; sourceTree = "<group>"; };
 		RCL000220 /* BackupCategoryIcon.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackupCategoryIcon.swift; sourceTree = "<group>"; };
 		RCL000221 /* BackupHUD.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackupHUD.swift; sourceTree = "<group>"; };
+		D269D15225054CEC90515112 /* MinisWindowPiP.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = MinisWindowPiP.m; sourceTree = "<group>"; };
+		D269D15225054CEC90515113 /* MinisWindowPiP.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = MinisWindowPiP.h; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -1735,6 +1738,8 @@
 			isa = PBXGroup;
 			children = (
 				E51000011 /* MinisApp.swift */,
+				D269D15225054CEC90515112 /* MinisWindowPiP.m */,
+				D269D15225054CEC90515113 /* MinisWindowPiP.h */,
 				E5QA0102 /* AppDelegate.swift */,
 				E5E000018 /* Minis.entitlements */,
 				E5PV00002 /* PrivacyInfo.xcprivacy */,
@@ -3182,6 +3187,7 @@
 				AA26CCBC2F324FE400AECF2D /* FileBrowserView.swift in Sources */,
 				AA26CCBE2F31080100AECF2D /* RootfsManager.swift in Sources */,
 				E51000001 /* MinisApp.swift in Sources */,
+				D269D15225054CEC90515111 /* MinisWindowPiP.m in Sources */,
 				E5FPBH02 /* FileProviderBootHealth.swift in Sources */,
 				E5QA0001 /* QuickActionRouter.swift in Sources */,
 				E5QA0003 /* QuickActionWorkflow.swift in Sources */,

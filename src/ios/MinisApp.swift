@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 import ObjectiveC
 import FileProvider
 import UserNotifications
@@ -234,9 +235,37 @@ struct MinisApp: App {
                 // copy). It lays itself out full-screen (bottom-trailing capsule +
                 // tap-to-dismiss catcher), so no positioning wrapper here.
                 SpeechPlayerControl()
+                if !sessionLockStore.appIsLocked {
+                    VStack {
+                        Spacer()
+                        HStack {
+                            Button {
+                                AudioSessionCoordinator.shared.begin(.windowPiP)
+                                MinisWindowPiP.toggle(releaseAudio: {
+                                    Task { @MainActor in
+                                        AudioSessionCoordinator.shared.end(.windowPiP)
+                                    }
+                                })
+                            } label: {
+                                Image(systemName: "pip")
+                                    .frame(width: 44, height: 44)
+                                    .background(.regularMaterial, in: Circle())
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityLabel(Text("Picture in Picture"))
+                            Spacer()
+                        }
+                        .padding(.leading, 12)
+                        .padding(.bottom, 76)
+                    }
+                }
                 AppLockOverlay()
             }
+                .onReceive(NotificationCenter.default.publisher(for: UIApplication.protectedDataWillBecomeUnavailableNotification)) { _ in
+                    MinisWindowPiP.stop()
+                }
                 .onReceive(SessionLockStore.shared.$appIsLocked) { locked in
+                    if locked { MinisWindowPiP.stop() }
                     guard !locked, let url = pendingURLWhileLocked else { return }
                     pendingURLWhileLocked = nil
                     if BackupOpenRouter.handle(url) {

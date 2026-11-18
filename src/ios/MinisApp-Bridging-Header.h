@@ -62,6 +62,8 @@
 // CppJieba Chinese word segmentation (ObjC++ wrapper)
 #import "JiebaWrapper.h"
 
+#import "MinisWindowPiP.h"
+
 #endif /* MinisApp_Bridging_Header_h */
 
 // rclone static library (deps/frameworks/Rclone.xcframework) — see RcloneBridge.swift
