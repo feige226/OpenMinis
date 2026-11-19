@@ -1309,7 +1309,6 @@ struct MinisApp: App {
 // No Duo-only SDK symbols: unsupported devices get an explicit explanation.
 @MainActor
 private struct MinisSceneWindowButton: View {
-    @Environment(\.supportsMultipleWindows) private var supportsMultipleWindows
     @State private var failureMessage: String?
     @State private var requesting = false
 
@@ -1333,12 +1332,7 @@ private struct MinisSceneWindowButton: View {
     }
 
     private func requestWindow() {
-        guard supportsMultipleWindows, UIApplication.shared.supportsMultipleScenes else {
-            failureMessage = "当前设备或系统模式不支持多个 App 场景。此入口不会用 PiP 或 App 内预览代替系统窗口。"
-            return
-        }
-        guard !SessionLockStore.shared.appIsLocked,
-              UIApplication.shared.isProtectedDataAvailable else { return }
+        guard UIApplication.shared.isProtectedDataAvailable else { return }
         requesting = true
         UIApplication.shared.requestSceneSessionActivation(
             nil, userActivity: nil, options: nil
