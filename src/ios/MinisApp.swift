@@ -113,6 +113,9 @@ struct MinisApp: App {
     /// Tracks when the app entered background for duration logging.
     @State private var backgroundEntryDate: Date?
 
+    // Shared process services must not restart for every WindowGroup instance.
+    @MainActor private static var didStartSceneServices = false
+
     init() {
         // [T-ios-mac-uncaught-nsexception] FIRST statement in the process's own
         // code — before any subsystem gets a chance to throw.
@@ -223,7 +226,7 @@ struct MinisApp: App {
     }
 
     var body: some Scene {
-        WindowGroup {
+        WindowGroup("Minis") {
             ZStack {
                 ContentView()
                     .overlay(alignment: .top) {
@@ -239,20 +242,7 @@ struct MinisApp: App {
                     VStack {
                         Spacer()
                         HStack {
-                            Button {
-                                AudioSessionCoordinator.shared.begin(.windowPiP)
-                                MinisWindowPiP.toggle(releaseAudio: {
-                                    Task { @MainActor in
-                                        AudioSessionCoordinator.shared.end(.windowPiP)
-                                    }
-                                })
-                            } label: {
-                                Image(systemName: "pip")
-                                    .frame(width: 44, height: 44)
-                                    .background(.regularMaterial, in: Circle())
-                            }
-                            .buttonStyle(.plain)
-                            .accessibilityLabel(Text("Picture in Picture"))
+                            MinisSceneWindowButton()
                             Spacer()
                         }
                         .padding(.leading, 12)
@@ -393,6 +383,10 @@ struct MinisApp: App {
                     }
                 }
                 .onAppear {
+                    // New scenes reuse process services, but still check incoming shares.
+                    shareCoordinator.checkForPendingShare()
+                    guard !Self.didStartSceneServices else { return }
+                    Self.didStartSceneServices = true
                     // Populate ConfigRegistry once. Idempotent — every
                     // appearance after the first is a no-op.
                     ConfigRegistry.shared.registerBuiltinsIfNeeded()
@@ -460,8 +454,7 @@ struct MinisApp: App {
                     AgentToolSwitch.migrateLegacyIfNeeded()
                     // For existing users with no model groups, create a default group silently
                     Task { await ProviderConfigStore.shared.createDefaultGroupIfNeeded() }
-                    shareLog.info("[Share] onAppear — checking for pending share")
-                    shareCoordinator.checkForPendingShare()
+                    // Pending shares were checked above the process-service guard.
                     // Set up background keep-alive manager
                     BackgroundKeepAliveManager.shared.setup()
                     // Monitor network changes to keep iSH DNS up to date
@@ -1308,6 +1301,58 @@ struct MinisApp: App {
             binding.wrappedValue = WebAppPresentation(id: shortcut.id, shortcut: shortcut, resolved: resolved)
         } catch {
             lifecycleLog.error("[WebApp] deeplink resolve failed scope=\(shortcut.pathScope.rawValue) htmlPath=\(shortcut.htmlPath) error=\(error)")
+        }
+    }
+}
+
+// Native scene windows, not an AVKit/PiP mirror. The OS owns placement.
+// No Duo-only SDK symbols: unsupported devices get an explicit explanation.
+@MainActor
+private struct MinisSceneWindowButton: View {
+    @Environment(\.supportsMultipleWindows) private var supportsMultipleWindows
+    @State private var failureMessage: String?
+    @State private var requesting = false
+
+    var body: some View {
+        Button(action: requestWindow) {
+            Image(systemName: "square.split.2x1")
+                .frame(width: 44, height: 44)
+                .background(.regularMaterial, in: Circle())
+        }
+        .buttonStyle(.plain)
+        .disabled(requesting)
+        .accessibilityLabel(Text("Open in New Window"))
+        .alert("Minis 窗口", isPresented: Binding(
+            get: { failureMessage != nil },
+            set: { if !$0 { failureMessage = nil } }
+        )) {
+            Button("好", role: .cancel) { failureMessage = nil }
+        } message: {
+            Text(failureMessage ?? "")
+        }
+    }
+
+    private func requestWindow() {
+        guard supportsMultipleWindows, UIApplication.shared.supportsMultipleScenes else {
+            failureMessage = "当前设备或系统模式不支持多个 App 场景。此入口不会用 PiP 或 App 内预览代替系统窗口。"
+            return
+        }
+        guard !SessionLockStore.shared.appIsLocked,
+              UIApplication.shared.isProtectedDataAvailable else { return }
+        requesting = true
+        UIApplication.shared.requestSceneSessionActivation(
+            nil, userActivity: nil, options: nil
+        ) { error in
+            let message = error.localizedDescription
+            Task { @MainActor in
+                failureMessage = "系统未能打开新窗口：\(message)"
+                requesting = false
+            }
+        }
+        // The API has only an error callback. Do not treat this debounce as success.
+        Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 1_500_000_000)
+            requesting = false
         }
     }
 }
