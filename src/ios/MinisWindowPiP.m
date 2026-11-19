@@ -14,6 +14,8 @@
 @property(nonatomic, strong) NSTimer *timer;
 @property(nonatomic, copy) void (^releaseAudio)(void);
 @property(nonatomic) BOOL requested;
+@property(nonatomic) NSUInteger framesEnqueued;
+@property(nonatomic) OSStatus frameError;
 @property(nonatomic) BOOL paused;
 @property(nonatomic) NSTimeInterval deadline;
 @end
@@ -54,19 +56,39 @@ static MinisWindowPiP *current;
 }
 
 - (void)prepare {
-    self.anchor = [[UIView alloc] initWithFrame:CGRectMake(2, 2, 24, 32)];
+    CGRect bounds = self.window.bounds;
+    CGFloat width = MIN(144, CGRectGetWidth(bounds) * 0.42);
+    CGFloat height = width * CGRectGetHeight(bounds) / MAX(1, CGRectGetWidth(bounds));
+    CGRect frame = CGRectMake(CGRectGetMaxX(bounds) - self.window.safeAreaInsets.right - width - 12,
+                              self.window.safeAreaInsets.top + 52, width, height);
+    self.anchor = [[UIView alloc] initWithFrame:frame];
+    self.anchor.autoresizingMask = UIViewAutoresizingFlexibleLeftMargin | UIViewAutoresizingFlexibleBottomMargin;
+    self.anchor.clipsToBounds = YES;
+    self.anchor.layer.cornerRadius = 10;
+    self.anchor.backgroundColor = UIColor.blackColor;
     self.anchor.userInteractionEnabled = NO;
     self.anchor.accessibilityElementsHidden = YES;
     self.display = [AVSampleBufferDisplayLayer layer];
     self.display.frame = self.anchor.bounds;
     self.display.videoGravity = AVLayerVideoGravityResizeAspect;
     [self.anchor.layer addSublayer:self.display];
-    [self.window insertSubview:self.anchor atIndex:0];
+    [self.window addSubview:self.anchor];
+    CMTimebaseRef timebase = NULL;
+    OSStatus status = CMTimebaseCreateWithSourceClock(kCFAllocatorDefault, CMClockGetHostTimeClock(), &timebase);
+    if (status != noErr || !timebase) {
+        [self finish];
+        [self show:[NSString stringWithFormat:@"PiP: playback clock setup failed (%d).", (int)status]];
+        return;
+    }
+    CMTimebaseSetTime(timebase, kCMTimeZero);
+    CMTimebaseSetRate(timebase, 1.0);
+    self.display.controlTimebase = timebase;
+    CFRelease(timebase);
     AVPictureInPictureControllerContentSource *source = [[AVPictureInPictureControllerContentSource alloc] initWithSampleBufferDisplayLayer:self.display playbackDelegate:self];
     self.controller = [[AVPictureInPictureController alloc] initWithContentSource:source];
     self.controller.delegate = self;
     self.controller.requiresLinearPlayback = YES;
-    self.deadline = NSProcessInfo.processInfo.systemUptime + 5;
+    self.deadline = NSProcessInfo.processInfo.systemUptime + 10;
     self.timer = [NSTimer timerWithTimeInterval:0.25 target:self selector:@selector(tick) userInfo:nil repeats:YES];
     [NSRunLoop.mainRunLoop addTimer:self.timer forMode:NSRunLoopCommonModes];
     [self tick];
@@ -80,11 +102,14 @@ static MinisWindowPiP *current;
     if (!self.paused) [self pushFrame];
     if (self.controller.isPictureInPictureActive) return;
     if (NSProcessInfo.processInfo.systemUptime >= self.deadline) {
+        NSString *stage = self.framesEnqueued == 0 ? @"No video frames enqueued" : self.requested ? @"Start requested; no response" : @"System did not mark PiP possible";
+        NSString *detail = [NSString stringWithFormat:@"%@. Frames: %lu; layer: %ld; frame error: %d; audio: %@; renderer: %@.", stage, (unsigned long)self.framesEnqueued, (long)self.display.status, (int)self.frameError, AVAudioSession.sharedInstance.category, self.display.error.localizedDescription ?: @"none"];
+        NSLog(@"[MinisWindowPiP] %@", detail);
         [MinisWindowPiP stop];
-        [self show:NSLocalizedString(@"Picture in Picture could not start. Check that system Picture in Picture is available.", nil)];
+        [self show:detail];
         return;
     }
-    if (!self.requested && self.controller.isPictureInPicturePossible) {
+    if (!self.requested && self.framesEnqueued > 0 && self.controller.isPictureInPicturePossible) {
         self.requested = YES;
         [self.controller startPictureInPicture];
     }
@@ -92,13 +117,17 @@ static MinisWindowPiP *current;
 
 - (void)pushFrame {
     UIWindow *window = self.window;
-    CGSize size = window.bounds.size;
+    // Do not mirror our preview back into itself. Capture only the app root.
+    UIView *content = window.rootViewController.view;
+    CGSize size = content.bounds.size;
     if (size.width < 2 || size.height < 2 || !self.display.readyForMoreMediaData) return;
-    size_t width = 384, height = MIN(960, MAX(2, (size_t)(width * size.height / size.width)));
+    size_t width = 384, height = MIN(960, MAX(2, ((size_t)(width * size.height / size.width) + 1) & ~(size_t)1));
     NSDictionary *attributes = @{(__bridge NSString *)kCVPixelBufferIOSurfacePropertiesKey: @{}};
     CVPixelBufferRef pixel = NULL;
-    if (CVPixelBufferCreate(kCFAllocatorDefault, width, height, kCVPixelFormatType_32BGRA, (__bridge CFDictionaryRef)attributes, &pixel) != noErr) return;
-    if (CVPixelBufferLockBaseAddress(pixel, 0) != noErr) { CVPixelBufferRelease(pixel); return; }
+    self.frameError = CVPixelBufferCreate(kCFAllocatorDefault, width, height, kCVPixelFormatType_32BGRA, (__bridge CFDictionaryRef)attributes, &pixel);
+    if (self.frameError != noErr || !pixel) return;
+    self.frameError = CVPixelBufferLockBaseAddress(pixel, 0);
+    if (self.frameError != noErr) { CVPixelBufferRelease(pixel); return; }
     CGColorSpaceRef color = CGColorSpaceCreateDeviceRGB();
     CGContextRef context = CGBitmapContextCreate(CVPixelBufferGetBaseAddress(pixel), width, height, 8, CVPixelBufferGetBytesPerRow(pixel), color, kCGBitmapByteOrder32Little | kCGImageAlphaPremultipliedFirst);
     CGColorSpaceRelease(color);
@@ -106,7 +135,7 @@ static MinisWindowPiP *current;
         CGContextTranslateCTM(context, 0, height);
         CGContextScaleCTM(context, (CGFloat)width / size.width, -(CGFloat)height / size.height);
         UIGraphicsPushContext(context);
-        if (![window drawViewHierarchyInRect:window.bounds afterScreenUpdates:NO]) [window.layer renderInContext:context];
+        if (![content drawViewHierarchyInRect:content.bounds afterScreenUpdates:NO]) [content.layer renderInContext:context];
         UIGraphicsPopContext();
         CGContextRelease(context);
     }
@@ -117,16 +146,19 @@ static MinisWindowPiP *current;
 
 - (void)enqueuePixel:(CVPixelBufferRef)pixel {
     CMVideoFormatDescriptionRef format = NULL;
-    if (CMVideoFormatDescriptionCreateForImageBuffer(kCFAllocatorDefault, pixel, &format) != noErr) return;
-    CMSampleTimingInfo timing = {CMTimeMake(1, 4), CMClockGetTime(CMClockGetHostTimeClock()), kCMTimeInvalid};
+    self.frameError = CMVideoFormatDescriptionCreateForImageBuffer(kCFAllocatorDefault, pixel, &format);
+    if (self.frameError != noErr) return;
+    CMSampleTimingInfo timing = {CMTimeMake(1, 4), CMTimebaseGetTime(self.display.controlTimebase), kCMTimeInvalid};
     CMSampleBufferRef sample = NULL;
-    if (CMSampleBufferCreateReadyWithImageBuffer(kCFAllocatorDefault, pixel, format, &timing, &sample) == noErr) {
+    self.frameError = CMSampleBufferCreateReadyWithImageBuffer(kCFAllocatorDefault, pixel, format, &timing, &sample);
+    if (self.frameError == noErr && sample) {
         CFArrayRef attachments = CMSampleBufferGetSampleAttachmentsArray(sample, YES);
         if (attachments && CFArrayGetCount(attachments)) {
             CFMutableDictionaryRef first = (CFMutableDictionaryRef)CFArrayGetValueAtIndex(attachments, 0);
             CFDictionarySetValue(first, kCMSampleAttachmentKey_DisplayImmediately, kCFBooleanTrue);
         }
         [self.display enqueueSampleBuffer:sample];
+        self.framesEnqueued += 1;
         CFRelease(sample);
     }
     CFRelease(format);
