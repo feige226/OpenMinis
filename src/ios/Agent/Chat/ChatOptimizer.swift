@@ -361,8 +361,56 @@ final class ChatOptimizer {
             return LatencyProbe(seconds: nil, error: "no text returned")
         } catch {
             let msg = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+            // [T-latency-agent-path] The probe above sends the plain
+            // `streamMessage` body. Gateways that validate the request against
+            // the envelope the agent loop uses reject it outright — Raccoon
+            // answers every model with `400 param model unsupport` even though
+            // the same model chats fine, so its badges were all red crosses.
+            // Retry once through the agent-shaped request before recording a
+            // failure: a model that chats must not be reported as broken.
+            AppLogger(category: "ChatOptimizer").info("[latency] \(entry.id) plain probe failed (\(msg)); retrying via agent path")
+            if let agentProbe = await probeViaAgentPath(entry: entry) { return agentProbe }
             AppLogger(category: "ChatOptimizer").warning("[latency] \(entry.id) failed: \(msg)")
             return LatencyProbe(seconds: nil, error: msg)
+        }
+    }
+
+    /// Speed-test fallback that mirrors what a real chat turn sends.
+    ///
+    /// `measureLatency` uses `LLMProvider.streamMessage`, which is the
+    /// lightweight single-shot completion shape. Chat turns instead go through
+    /// `AgentProvider.streamAgentMessage` — different message envelope, tools
+    /// array, thinking parameters. Some gateways (Raccoon/小浣熊 among them)
+    /// accept only the latter and answer the former with
+    /// `400 param model unsupport`, which made every Raccoon badge a red cross
+    /// while the models chatted normally moments later.
+    ///
+    /// Returns nil when the fallback also fails, so the caller keeps the
+    /// original error — the accurate one for a genuinely broken model.
+    private func probeViaAgentPath(entry: ModelEntry) async -> LatencyProbe? {
+        let messages: [AgentMessage] = [
+            AgentMessage(role: .user, parts: [.text("hi")])
+        ]
+        let start = Date()
+        do {
+            let provider = await AIChatViewModel.makeAgentProvider(for: entry, sessionId: OpenCodeChannel.oneOffSessionId())
+            let stream = try await provider.streamAgentMessageClamped(
+                messages: messages,
+                systemPrompt: nil,
+                tools: [],
+                maxTokens: 256,
+                thinkingLevel: .off
+            )
+            for try await event in stream {
+                if case .textDelta(let t) = event, !t.isEmpty {
+                    return LatencyProbe(seconds: Date().timeIntervalSince(start), error: nil)
+                }
+            }
+            return LatencyProbe(seconds: nil, error: "no text returned")
+        } catch {
+            let msg = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+            AppLogger(category: "ChatOptimizer").info("[latency] \(entry.id) agent-path probe failed: \(msg)")
+            return nil
         }
     }
 
