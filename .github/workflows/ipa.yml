@@ -7,7 +7,7 @@ name: Unsigned IPA
 on:
   workflow_dispatch:
   push:
-    branches: [workbuddy-1.15]
+    branches: [workbuddy-1.15, ios-1.16-appgroup-fix]
 
 permissions:
   contents: read

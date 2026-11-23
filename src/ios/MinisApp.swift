@@ -845,6 +845,21 @@ struct MinisApp: App {
     }
 
     private static func registerFileProviderDomain() {
+        // A sandbox fallback is private to each process; an extension cannot
+        // expose the main app's files without a real shared container.
+        guard MinisStoragePaths.current.hasAppGroup else {
+            let root = AIChatViewModel.minisAppGroupRoot
+            for sub in ["memory", "skills", "shared"] {
+                try? FileManager.default.createDirectory(
+                    at: root.appendingPathComponent(sub, isDirectory: true),
+                    withIntermediateDirectories: true
+                )
+            }
+            SoulStore.ensureExists()
+            SoulStore.refreshCache()
+            lifecycleLog.warning("[FileProvider] App Group unavailable; using persistent sandbox storage and skipping domain registration")
+            return
+        }
         logAppUpdateMarkerForFPTrace()
 
         // [T-ios-fp-mac-bootcrash] Circuit breaker, NOT a blanket disable.
@@ -1210,9 +1225,8 @@ struct MinisApp: App {
     private static func migrateSharedDirToAppGroup() {
         let fm = FileManager.default
         let library = fm.urls(for: .libraryDirectory, in: .userDomainMask).first!
-        let container = fm.containerURL(forSecurityApplicationGroupIdentifier: "group.com.openminis.app")!
 
-        let migrations: [(source: URL, dest: URL, label: String)] = [
+        var migrations: [(source: URL, dest: URL, label: String)] = [
             // Legacy Library/MinisChat/shared → new shared
             (library.appendingPathComponent("MinisChat/shared", isDirectory: true),
              AIChatViewModel.minisSharedPersistentDir, "shared"),
@@ -1222,10 +1236,14 @@ struct MinisApp: App {
             // Legacy Library/MinisChat/skills → new skills
             (library.appendingPathComponent("MinisChat/skills", isDirectory: true),
              AIChatViewModel.minisSkillsPersistentDir, "skills"),
-            // Old App Group MinisShared → new shared
-            (container.appendingPathComponent("MinisShared", isDirectory: true),
-             AIChatViewModel.minisSharedPersistentDir, "MinisShared→shared"),
         ]
+        // Only an App Group build has that legacy source; a re-signed build
+        // without the entitlement must not trap here.
+        if let container = MinisStoragePaths.current.appGroupContainer {
+            // Old App Group MinisShared → new shared
+            migrations.append((container.appendingPathComponent("MinisShared", isDirectory: true),
+                               AIChatViewModel.minisSharedPersistentDir, "MinisShared→shared"))
+        }
 
         for migration in migrations {
             guard fm.fileExists(atPath: migration.source.path) else { continue }

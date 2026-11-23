@@ -637,6 +637,8 @@
 		RCL000120 /* BackupCategoryIcon.swift in Sources */ = {isa = PBXBuildFile; fileRef = RCL000220 /* BackupCategoryIcon.swift */; };
 		RCL000121 /* BackupHUD.swift in Sources */ = {isa = PBXBuildFile; fileRef = RCL000221 /* BackupHUD.swift */; };
 		D269D15225054CEC90515111 /* MinisWindowPiP.m in Sources */ = {isa = PBXBuildFile; fileRef = D269D15225054CEC90515112; };
+		F02611130000000000000001 /* MinisStoragePaths.swift in Sources */ = {isa = PBXBuildFile; fileRef = F02611130000000000000003 /* MinisStoragePaths.swift */; };
+		F02611130000000000000002 /* MinisStoragePaths.swift in Sources */ = {isa = PBXBuildFile; fileRef = F02611130000000000000003 /* MinisStoragePaths.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -1484,6 +1486,7 @@
 		RCL000221 /* BackupHUD.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackupHUD.swift; sourceTree = "<group>"; };
 		D269D15225054CEC90515112 /* MinisWindowPiP.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = MinisWindowPiP.m; sourceTree = "<group>"; };
 		D269D15225054CEC90515113 /* MinisWindowPiP.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = MinisWindowPiP.h; sourceTree = "<group>"; };
+		F02611130000000000000003 /* MinisStoragePaths.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MinisStoragePaths.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -2149,6 +2152,7 @@
 				E5E000019 /* ShareCoordinator.swift */,
 				E5E0000A2 /* ExternalFileImporter.swift */,
 				E5E000017 /* SharedContainerStore.swift */,
+				F02611130000000000000003 /* MinisStoragePaths.swift */,
 				AADDA9E02F6ECCF400B66649 /* ThumbnailCache.swift */,
 			);
 			path = Shared;
@@ -3535,6 +3539,7 @@
 				E5D00026 /* OnboardingModelSelectionView.swift in Sources */,
 				E5E000006 /* PendingShare.swift in Sources */,
 				E5E000007 /* SharedContainerStore.swift in Sources */,
+				F02611130000000000000001 /* MinisStoragePaths.swift in Sources */,
 				E5E000008 /* ShareCoordinator.swift in Sources */,
 				E5E0000A1 /* ExternalFileImporter.swift in Sources */,
 				E5G000001 /* BackgroundKeepAliveManager.swift in Sources */,
@@ -3723,6 +3728,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				E5FP00001 /* FileProviderExtension.swift in Sources */,
+				F02611130000000000000002 /* MinisStoragePaths.swift in Sources */,
 				E5FP00002 /* FileProviderEnumerator.swift in Sources */,
 				E5FP00003 /* FileProviderItem.swift in Sources */,
 				E5FP00200 /* FPSyncTraceLog.swift in Sources */,

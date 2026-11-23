@@ -1,0 +1,30 @@
+name: iOS storage fallback regression
+
+on:
+  push:
+    paths:
+      - 'src/ios/Shared/MinisStoragePaths.swift'
+      - 'scripts/ios-unit-tests/storage-paths/**'
+      - '.github/workflows/ios-storage-paths.yml'
+  pull_request:
+    paths:
+      - 'src/ios/Shared/MinisStoragePaths.swift'
+      - 'scripts/ios-unit-tests/storage-paths/**'
+      - '.github/workflows/ios-storage-paths.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  storage:
+    runs-on: macos-15
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Compile and exercise both storage modes
+        run: |
+          xcrun swiftc src/ios/Shared/MinisStoragePaths.swift \
+            scripts/ios-unit-tests/storage-paths/main.swift \
+            -o "$RUNNER_TEMP/storage-paths-tests"
+          "$RUNNER_TEMP/storage-paths-tests"
